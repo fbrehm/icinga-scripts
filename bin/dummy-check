@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ -f /usr/lib/nagios/plugins/utils.sh ] ; then
+
+    #echo "Sourcing /usr/lib/nagios/plugins/utils.sh ..."
+    source /usr/lib/nagios/plugins/utils.sh
+
+fi
+
+echo "Dummy check - returns allways OK."
+exit ${STATE_OK:-0}
+
+# vim: ts=4 expandtab
