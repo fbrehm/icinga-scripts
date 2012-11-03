@@ -6,8 +6,34 @@ if [ -f /usr/lib/nagios/plugins/utils.sh ] ; then
     source /usr/lib/nagios/plugins/utils.sh
 
 fi
+#############################
+usage() {
+    echo "Dummy check plugin for a noop check."
+    echo
+    echo "Usage: $0"
+}
 
-echo "Dummy check - returns allways OK."
-exit ${STATE_OK:-0}
+#############################
+check() {
+    echo "Dummy check - returns allways OK."
+    exit ${STATE_OK:-0}
+}
+
+#############################
+case $1 in
+    --help)
+        usage
+        exit ${STATE_OK:-0}
+        ;;
+
+    *)
+        if [ -z "$1" ]; then
+            check
+        else
+            echo "unknown command: $1"
+            exit ${STATE_UNKNOWN:-3}
+        fi
+        ;;
+esac
 
 # vim: ts=4 expandtab
