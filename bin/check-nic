@@ -53,7 +53,7 @@ while true ; do
             break
             ;;
         *)  echo "Internal error!"
-            exit 1
+            exit ${STATE_UNKNOWN:-3}
             ;;
     esac
 done
@@ -61,9 +61,6 @@ done
 if [ "${debug}" = "y" ] ; then
     set -x
 fi
-
-#echo "Remaining arguments:"
-#for arg do echo '--> '"\`$arg'" ; done
 
 NIC="${1:-"EMPTY"}"
 if [ "${NIC}" = "EMPTY" ] ; then
