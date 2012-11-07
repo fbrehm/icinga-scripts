@@ -87,6 +87,11 @@ while true ; do
             debug="y"
             shift
             ;;
+        -h|--help)
+            shift
+            usage
+            exit ${STATE_OK}
+            ;;
         --) shift
             break
             ;;
