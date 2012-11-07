@@ -223,6 +223,13 @@ raid_metadata() {
 
 #-------------------------------
 raid_degraded() {
+
+    if [ ! -f "${MD_DIR}/degraded" ] ; then
+        RETVAL="${STATE_UNKNOWN}"
+        MESSAGE="/dev/${RAIDDEV} UNKNOWN: data redundancy not supported"
+        return
+    fi
+
     DATA="$(cat ${MD_DIR}/degraded)"
 
     case ${DATA:-"EMPTY"} in
@@ -243,6 +250,12 @@ raid_degraded() {
 
 #-------------------------------
 raid_syncaction() {
+
+    if [ ! -f "${MD_DIR}/sync_action" ] ; then
+        RETVAL="${STATE_UNKNOWN}"
+        MESSAGE="/dev/${RAIDDEV} UNKNOWN: data redundancy not supported"
+        return
+    fi
     DATA="$(cat ${MD_DIR}/sync_action)"
 
     case ${DATA:-"EMPTY"} in
