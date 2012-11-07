@@ -289,7 +289,13 @@ raid_level() {
 #-------------------------------
 raid_bitmap_location() {
     DATA="$(cat ${MD_DIR}/bitmap/location)"
-    DATA_REGEX="$(echo "${DATA}" | egrep -o '^[+-]{1}[0-9]+$')"
+    if [ "${DATA}" = "none" ] ; then
+        RETVAL="${STATE_UNKNOWN}"
+        MESSAGE="/dev/${RAIDDEV} UNKNOWN: bitmap/location unset"
+        return
+    fi
+
+    DATA_REGEX="$(echo "${DATA}" | egrep -o '^[+-]{1}[0-9]+$' | true)"
 
     if [ "${DATA:-"EMPTY"}" == "EMPTY" ]; then
         RETVAL="${STATE_UNKNOWN}"
