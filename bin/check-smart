@@ -226,6 +226,7 @@ else
     RETVAL=${STATE_OK}
 fi
 
+MESSAGE="${MESSAGE} | gd_list=${SMART_GDLIST};${warn_sectors};${crit_sectors}"
 
 cleanup
 echo "${MESSAGE}"
