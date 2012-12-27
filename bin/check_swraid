@@ -230,6 +230,11 @@ raid_degraded() {
         return
     fi
 
+    SYNC_ACTION="unknown"
+    if [ -f "${MD_DIR}/sync_action" ] ; then
+        SYNC_ACTION="$(cat ${MD_DIR}/sync_action)"
+    fi
+
     DATA="$(cat ${MD_DIR}/degraded)"
 
     case ${DATA:-"EMPTY"} in
@@ -244,6 +249,20 @@ raid_degraded() {
         *)
             RETVAL="${STATE_CRITICAL}"
             MESSAGE="/dev/${RAIDDEV} CRITICAL: degraded '${DATA}'"
+            case ${SYNC_ACTION:-"EMPTY"} in
+                'idle')
+                    MESSAGE="${MESSAGE}, sync_action '${SYNC_ACTION}'"
+                    ;;
+                'resync'|'recover'|'check'|'repair')
+                    MESSAGE="/dev/${RAIDDEV} WARNING: degraded '${DATA}', sync_action '${SYNC_ACTION}'"
+                    RETVAL="${STATE_WARNING}"
+                    ;;
+                'EMPTY'|'unknown')
+                    ;;
+                *)
+                    MESSAGE="${MESSAGE}, sync_action '${SYNC_ACTION}'"
+                    ;;
+            esac
         ;;
     esac
 }
@@ -344,8 +363,14 @@ raid_bitmap_metadata() {
 
 #-------------------------------
 raid_component_state() {
+
     RAID_DISKS="$(cat ${MD_DIR}/raid_disks | egrep -o '[0-9]*')"
     COMPONENT_STATE="$(cat ${MD_DIR}/dev-*/state | egrep -c '^in_sync$')"
+
+    SYNC_ACTION="unknown"
+    if [ -f "${MD_DIR}/sync_action" ] ; then
+        SYNC_ACTION="$(cat ${MD_DIR}/sync_action)"
+    fi
 
     if [ ${RAID_DISKS} -eq ${COMPONENT_STATE} ] && [ ${RAID_DISKS} -ge 2 ]; then
         RETVAL="${STATE_OK}"
@@ -353,6 +378,20 @@ raid_component_state() {
     else
         RETVAL="${STATE_CRITICAL}"
         MESSAGE="/dev/${RAIDDEV} CRITICAL: one or more component devices not in sync"
+        case ${SYNC_ACTION:-"EMPTY"} in
+            'idle')
+                MESSAGE="${MESSAGE}, sync_action '${SYNC_ACTION}'"
+                ;;
+            'resync'|'recover'|'check'|'repair')
+                MESSAGE="/dev/${RAIDDEV} WARNING: one or more component devices not in sync, sync_action '${SYNC_ACTION}'"
+                RETVAL="${STATE_WARNING}"
+                ;;
+            'EMPTY'|'unknown')
+                ;;
+            *)
+                MESSAGE="${MESSAGE}, sync_action '${SYNC_ACTION}'"
+                ;;
+        esac
     fi
 }
 
