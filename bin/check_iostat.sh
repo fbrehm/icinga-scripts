@@ -11,7 +11,20 @@ BASEDIR="$(dirname "$0")"
 bc=`which bc 2>/dev/null`
 
 help() {
-    echo -e "\n\tThis plugin shows the I/O usage of the specified disk, using data from sysfs.\n\tIt prints two statistics: IO per second\n\tread from the disk (IOPs read) and written to the disk (IOPs write)\n\n$0:\n\t-d <disk>\t\tDevice to be checked (without the full path, eg. sda)\n\t-c <read>,<wrtn>\tSets the CRITICAL level for IOPs read and IOPs write, respectively\n\t-w <read>,<wrtn>\tSets the WARNING level for IOPs read and IOPs write, respectively\n"
+
+    cat <<EOF
+
+	This plugin shows the I/O usage of the specified disk, using data from sysfs.
+	It prints two statistics: IO per second
+	read from the disk (IOPs read) and written to the disk (IOPs write).
+
+$0:
+	-d <disk>		Device to be checked (without the full path, eg. sda)
+	-c <read>,<wrtn>	Sets the CRITICAL level for IOPs read and IOPs write, respectively
+	-w <read>,<wrtn>	Sets the WARNING level for IOPs read and IOPs write, respectively
+
+EOF
+
     exit -1
 }
 
