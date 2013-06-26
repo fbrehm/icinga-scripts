@@ -189,8 +189,57 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         self.parse_args()
         self.init_root_logger()
 
+        state = nagios.state.ok
+        out = "Infiniband port %s:%d seems to be okay." % (
+                self.hca_name, self.hca_port)
+
         if self.verbose > 2:
             log.debug("Current object:\n%s", pp(self.as_dict()))
+
+        # Checking /sys/class/infiniband
+        if self.verbose > 1:
+            log.debug("Checking directory %r ...", IB_BASE_DIR)
+        if not os.path.exists(IB_BASE_DIR):
+            msg = "Directory %r doesn't exists." % (IB_BASE_DIR)
+            self.die(msg)
+        if not os.path.isdir(IB_BASE_DIR):
+            msg = "%r is not a directory." % (IB_BASE_DIR)
+            self.die(msg)
+
+        # Checking /sys/class/infiniband/mlx4_0
+        hca_dir = os.path.join(IB_BASE_DIR, self.hca_name)
+        if self.verbose > 1:
+            log.debug("Checking directory %r ...", hca_dir)
+        if not os.path.exists(hca_dir):
+            msg = "Directory %r doesn't exists." % (hca_dir)
+            self.die(msg)
+        if not os.path.isdir(hca_dir):
+            msg = "%r is not a directory." % (hca_dir)
+            self.die(msg)
+
+        # Checking /sys/class/infiniband/mlx4_0/ports
+        ports_dir = os.path.join(hca_dir, 'ports')
+        if self.verbose > 1:
+            log.debug("Checking directory %r ...", ports_dir)
+        if not os.path.exists(ports_dir):
+            msg = "Directory %r doesn't exists." % (ports_dir)
+            self.die(msg)
+        if not os.path.isdir(ports_dir):
+            msg = "%r is not a directory." % (ports_dir)
+            self.die(msg)
+
+        # Checking /sys/class/infiniband/mlx4_0/ports/1
+        port_dir = os.path.join(ports_dir, str(self.hca_port))
+        if self.verbose > 1:
+            log.debug("Checking directory %r ...", port_dir)
+        if not os.path.exists(port_dir):
+            msg = "Directory %r doesn't exists." % (port_dir)
+            self.die(msg)
+        if not os.path.isdir(port_dir):
+            msg = "%r is not a directory." % (port_dir)
+            self.die(msg)
+
+        self.exit(state, out)
 
 #==============================================================================
 
