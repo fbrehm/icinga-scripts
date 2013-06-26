@@ -10,6 +10,7 @@
 # Standard modules
 import os
 import sys
+import re
 import logging
 import textwrap
 
@@ -45,6 +46,26 @@ log = logging.getLogger(__name__)
 DEFAULT_RATE = 40
 DEFAULT_TIMEOUT = 2
 IB_BASE_DIR = os.sep + os.path.join('sys', 'class', 'infiniband')
+
+# Some conststants from /usr/include/infiniband/iba/ib_types.h:
+IB_LINK_NO_CHANGE = 0
+IB_LINK_DOWN      = 1
+IB_LINK_INIT      = 2
+IB_LINK_ARMED     = 3
+IB_LINK_ACTIVE    = 4
+IB_LINK_ACT_DEFER = 5
+
+IB_PORT_PHYS_STATE_NO_CHANGE      = 0
+IB_PORT_PHYS_STATE_SLEEP          = 1
+IB_PORT_PHYS_STATE_POLLING        = 2
+IB_PORT_PHYS_STATE_DISABLED       = 3
+IB_PORT_PHYS_STATE_SHIFT          = 4
+IB_PORT_PHYS_STATE_LINKUP         = 5
+IB_PORT_PHYS_STATE_LINKERRRECOVER = 6
+IB_PORT_PHYS_STATE_PHYTEST        = 7
+
+re_state = re.compile(r'^(\d+):\s+(\S.*)')
+re_rate = re.compile(r'^(\d+)')
 
 #==============================================================================
 class CheckIbStatusPlugin(ExtNagiosPlugin):
@@ -226,7 +247,32 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
                 msg = "%r is not a regular file." % (sfile)
                 self.exit(nagios.state.critical, msg)
 
-        # Checking
+        # getting state (e.g.: '4: ACTIVE', '1: DOWN')
+        cur_state = self.read_file(state_file).strip()
+        state_num = None
+        state_str = None
+        match = re_state.search(cur_state)
+        if not match:
+            msg = "Could not evaluate IB port state %r from %r." % (
+                    cur_state, state_file)
+            self.die(msg)
+        state_num = int(match.group(1))
+        state_str = match.group(2)
+        log.debug("Gote a state %r (%d) for infiniband port %s:%d.", state_str,
+                state_num, self.hca_name, self.hca_port)
+
+        cur_phys_state = self.read_file(phys_state_file).strip()
+        phys_state_num = None
+        phys_state_str = None
+        match = re_state.search(cur_phys_state)
+        if not match:
+            msg = "Could not evaluate IB port physical state %r from %r." % (
+                    cur_phys_state, phys_state_file)
+            self.die(msg)
+        phys_state_num = int(match.group(1))
+        phys_state_str = match.group(2)
+        log.debug("Gote a physical state %r (%d) for infiniband port %s:%d.",
+                phys_state_str, phys_state_num, self.hca_name, self.hca_port)
 
         self.exit(state, out)
 
