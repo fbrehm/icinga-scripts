@@ -38,11 +38,12 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 log = logging.getLogger(__name__)
 
-DEFAULT_SPEED = 40
+DEFAULT_RATE = 40
+DEFAULT_TIMEOUT = 2
 IB_BASE_DIR = os.sep + os.path.join('sys', 'class', 'infiniband')
 
 #==============================================================================
@@ -70,7 +71,7 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
 
         super(CheckIbStatusPlugin, self).__init__(
                 usage = usage, blurb = blurb,
-                version = __version__
+                version = __version__, timeout = DEFAULT_TIMEOUT,
         )
 
         self._hca_name = None
@@ -90,6 +91,8 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         @ivar: the expected transfer rate of the HCA port in Gb/sec
         @type: int
         """
+
+        self._add_args()
 
     #------------------------------------------------------------
     @property
@@ -128,6 +131,56 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         return d
 
     #--------------------------------------------------------------------------
+    def _add_args(self):
+        """
+        Adding all necessary arguments to the commandline argument parser.
+        """
+
+        self.add_arg(
+                '-H', '--hca-name',
+                metavar = 'HCA',
+                dest = 'hca_name',
+                required = True,
+                help = "The name of the HCA to check (e.g. 'mlx4_0').",
+        )
+
+        self.add_arg(
+                '-P', '--hca-port',
+                metavar = 'PORT',
+                dest = 'hca_port',
+                type = int,
+                required = True,
+                help = "The port number of the HCA to check (e.g. 1).",
+        )
+
+        self.add_arg(
+                '--rate',
+                metavar = 'RATE',
+                dest = 'rate',
+                type = int,
+                default = DEFAULT_RATE,
+                help = ("The expected transfer rate of the HCA port " +
+                        "in Gb/sec (Default: %(default)d)."),
+        )
+
+    #--------------------------------------------------------------------------
+    def parse_args(self, args = None):
+        """
+        Executes self.argparser.parse_args().
+
+        @param args: the argument strings to parse. If not given, they are
+                     taken from sys.argv.
+        @type args: list of str or None
+
+        """
+
+        super(CheckIbStatusPlugin, self).parse_args(args)
+
+        self._hca_name = self.argparser.args.hca_name
+        self._hca_port = self.argparser.args.hca_port
+        self._rate = self.argparser.args.rate
+
+    #--------------------------------------------------------------------------
     def __call__(self):
         """
         Method to call the plugin directly.
@@ -136,7 +189,8 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         self.parse_args()
         self.init_root_logger()
 
-
+        if self.verbose > 2:
+            log.debug("Current object:\n%s", pp(self.as_dict()))
 
 #==============================================================================
 
