@@ -1,0 +1,14 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+"""
+@author: Frank Brehm
+@contact: frank.brehm@profitbricks.com
+@copyright: © 2010 - 2013 by Frank Brehm, Berlin
+@summary: Nagios plugin ≡ check script to check the state
+          of a particular infiniband HCA port
+"""
+
+#==============================================================================
+
+# vim: fileencoding=utf-8 filetype=python ts=4
