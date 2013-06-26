@@ -41,6 +41,9 @@ __version__ = '0.1.0'
 
 log = logging.getLogger(__name__)
 
+DEFAULT_SPEED = 40
+IB_BASE_DIR = os.sep + os.path.join('sys', 'class', 'infiniband')
+
 #==============================================================================
 class CheckIbStatusPlugin(ExtNagiosPlugin):
     """
@@ -48,7 +51,81 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
     infiniband HCA and port.
     """
 
-    pass
+    #--------------------------------------------------------------------------
+    def __init__(self):
+        """
+        Constructor of the CheckIbStatusPlugin class.
+        """
+
+        usage = """\
+                %(prog)s [-v] [-t <timeout>] -H <HCA_name> -P <HCA_port> [--rate <RATE>]
+                """
+        usage = textwrap.dedent(usage).strip()
+        usage += '\n       %(prog)s --usage'
+        usage += '\n       %(prog)s --help'
+
+        blurb = "Copyright (c) 2013 Frank Brehm, Berlin.\n\n"
+        blurb += "Checks the state of the given Infiniband HCA port."
+
+        super(CheckIbStatusPlugin, self).__init__(
+                usage = usage, blurb = blurb,
+        )
+
+        self._hca_name = None
+        """
+        @ivar: the name of the HCA to check (e.g. 'mlx4_0')
+        @type: str
+        """
+
+        self._hca_port = None
+        """
+        @ivar: the port number of the HCA to check (e.g. 1)
+        @type: int
+        """
+
+        self._rate = 40
+        """
+        @ivar: the expected transfer rate of the HCA port in Gb/sec
+        @type: int
+        """
+
+    #------------------------------------------------------------
+    @property
+    def hca_name(self):
+        """The name of the HCA to check (e.g. 'mlx4_0')."""
+        return self._hca_name
+
+    #------------------------------------------------------------
+    @property
+    def hca_port(self):
+        """The port number of the HCA to check (e.g. 1)."""
+        return self._hca_port
+
+    #------------------------------------------------------------
+    @property
+    def rate(self):
+        """The expected transfer rate of the HCA port in Gb/sec."""
+        return self._rate
+
+    #--------------------------------------------------------------------------
+    def as_dict(self):
+        """
+        Typecasting into a dictionary.
+
+        @return: structure as dict
+        @rtype:  dict
+
+        """
+
+        d = super(CheckIbStatusPlugin, self).as_dict()
+
+        d['hca_name'] = self.hca_name
+        d['hca_port'] = self.hca_port
+        d['rate'] = self.rate
+
+        return d
+
+
 
 #==============================================================================
 
