@@ -196,48 +196,37 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         if self.verbose > 2:
             log.debug("Current object:\n%s", pp(self.as_dict()))
 
-        # Checking /sys/class/infiniband
-        if self.verbose > 1:
-            log.debug("Checking directory %r ...", IB_BASE_DIR)
-        if not os.path.exists(IB_BASE_DIR):
-            msg = "Directory %r doesn't exists." % (IB_BASE_DIR)
-            self.die(msg)
-        if not os.path.isdir(IB_BASE_DIR):
-            msg = "%r is not a directory." % (IB_BASE_DIR)
-            self.die(msg)
-
-        # Checking /sys/class/infiniband/mlx4_0
+        # Checking directories in sysfs ...
         hca_dir = os.path.join(IB_BASE_DIR, self.hca_name)
-        if self.verbose > 1:
-            log.debug("Checking directory %r ...", hca_dir)
-        if not os.path.exists(hca_dir):
-            msg = "Directory %r doesn't exists." % (hca_dir)
-            self.die(msg)
-        if not os.path.isdir(hca_dir):
-            msg = "%r is not a directory." % (hca_dir)
-            self.die(msg)
-
-        # Checking /sys/class/infiniband/mlx4_0/ports
         ports_dir = os.path.join(hca_dir, 'ports')
-        if self.verbose > 1:
-            log.debug("Checking directory %r ...", ports_dir)
-        if not os.path.exists(ports_dir):
-            msg = "Directory %r doesn't exists." % (ports_dir)
-            self.die(msg)
-        if not os.path.isdir(ports_dir):
-            msg = "%r is not a directory." % (ports_dir)
-            self.die(msg)
-
-        # Checking /sys/class/infiniband/mlx4_0/ports/1
         port_dir = os.path.join(ports_dir, str(self.hca_port))
-        if self.verbose > 1:
-            log.debug("Checking directory %r ...", port_dir)
-        if not os.path.exists(port_dir):
-            msg = "Directory %r doesn't exists." % (port_dir)
-            self.die(msg)
-        if not os.path.isdir(port_dir):
-            msg = "%r is not a directory." % (port_dir)
-            self.die(msg)
+
+        for sysfsdir in (IB_BASE_DIR, hca_dir, ports_dir, port_dir):
+            if self.verbose > 1:
+                log.debug("Checking directory %r ...", sysfsdir)
+            if not os.path.exists(sysfsdir):
+                msg = "Directory %r doesn't exists." % (sysfsdir)
+                self.exit(nagios.state.critical, msg)
+            if not os.path.isdir(sysfsdir):
+                msg = "%r is not a directory." % (sysfsdir)
+                self.exit(nagios.state.critical, msg)
+
+        # Checking state files
+        state_file = os.path.join(port_dir, 'state')
+        phys_state_file = os.path.join(port_dir, 'phys_state')
+        rate_file = os.path.join(port_dir, 'rate')
+
+        for sfile in (state_file, phys_state_file, rate_file):
+            if self.verbose > 1:
+                log.debug("Checking file %r ...", sfile)
+            if not os.path.exists(sfile):
+                msg = "File %r doesn't exists." % (sfile)
+                self.exit(nagios.state.critical, msg)
+            if not os.path.isfile(sfile):
+                msg = "%r is not a regular file." % (sfile)
+                self.exit(nagios.state.critical, msg)
+
+        # Checking
 
         self.exit(state, out)
 
