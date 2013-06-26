@@ -11,6 +11,7 @@
 import os
 import sys
 import logging
+import textwrap
 
 from numbers import Number
 
@@ -37,7 +38,7 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
 
         super(CheckIbStatusPlugin, self).__init__(
                 usage = usage, blurb = blurb,
+                version = __version__
         )
 
         self._hca_name = None
@@ -124,6 +126,15 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         d['rate'] = self.rate
 
         return d
+
+    #--------------------------------------------------------------------------
+    def __call__(self):
+        """
+        Method to call the plugin directly.
+        """
+
+        self.parse_args()
+        self.init_root_logger()
 
 
 

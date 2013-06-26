@@ -48,7 +48,8 @@ except ImportError, e:
     sys.exit(3)
 
 
-sys.exit(0)
+plugin = CheckIbStatusPlugin()
+plugin()
 
 #==============================================================================
 
