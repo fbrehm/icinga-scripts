@@ -258,9 +258,10 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
             self.die(msg)
         state_num = int(match.group(1))
         state_str = match.group(2)
-        log.debug("Gote a state %r (%d) for infiniband port %s:%d.", state_str,
+        log.debug("Got a state %r (%d) for infiniband port %s:%d.", state_str,
                 state_num, self.hca_name, self.hca_port)
 
+        # getting physical state (e.g.: '5: LinkUp', '2: Polling')
         cur_phys_state = self.read_file(phys_state_file).strip()
         phys_state_num = None
         phys_state_str = None
@@ -271,8 +272,33 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
             self.die(msg)
         phys_state_num = int(match.group(1))
         phys_state_str = match.group(2)
-        log.debug("Gote a physical state %r (%d) for infiniband port %s:%d.",
+        log.debug("Got a physical state %r (%d) for infiniband port %s:%d.",
                 phys_state_str, phys_state_num, self.hca_name, self.hca_port)
+
+        # getting the current port rate (e.g. '40 Gb/sec (4X QDR)')
+        cur_rate = self.read_file(rate_file).strip()
+        rate_val = None
+        match = re_rate.search(cur_rate)
+        if not match:
+            msg = "Could not evaluate IB port rate %r from %r." % (
+                    cur_rate, rate_file)
+            self.die(msg)
+        rate_val = int(match.group(1))
+        log.debug("Got a data rate of %d GiB/sec [%s] for infiniband port %s:%d.",
+                rate_val, cur_rate, self.hca_name, self.hca_port)
+
+        if rate_val != self.rate:
+            state = nagios.state.warning
+
+        if state_num != IB_LINK_ACTIVE:
+            state = nagios.state.critical
+
+        if phys_state_num != IB_PORT_PHYS_STATE_LINKUP:
+            state = nagios.state.critical
+
+        out = "Infiniband port %s:%d is %s (%s) - current rate %s." % (
+                self.hca_name, self.hca_port, state_str, phys_state_str,
+                cur_rate)
 
         self.exit(state, out)
 
