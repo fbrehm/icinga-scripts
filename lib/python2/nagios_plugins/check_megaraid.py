@@ -79,6 +79,14 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         @type: str
         """
 
+        self._megacli_cmd = None
+        """
+        @ivar: the path to the executable MegaCli command
+        @type: str
+        """
+
+        self._init_megacli_cmd()
+
         self._add_args()
 
     #------------------------------------------------------------
@@ -86,6 +94,12 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
     def adapter_nr(self):
         """The number of the MegaRaid adapter (e.g. 0)."""
         return self._adapter_nr
+
+    #------------------------------------------------------------
+    @property
+    def megacli_cmd(self):
+        """The path to the executable MegaCli command."""
+        return self._megacli_cmd
 
     #--------------------------------------------------------------------------
     def as_dict(self):
@@ -100,6 +114,7 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         d = super(CheckMegaRaidPlugin, self).as_dict()
 
         d['adapter_nr'] = self.adapter_nr
+        d['megacli_cmd'] = self.megacli_cmd
 
         return d
 
@@ -120,6 +135,58 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
                         "(Default: %(default)d)."),
         )
 
+        self.add_arg(
+                '--megacli',
+                metavar = 'CMD',
+                dest = 'megacli_cmd',
+                default = self.megacli_cmd,
+                help = ("The path to the executable MegaCli command " +
+                        "(Default: %(default)r)."),
+        )
+
+    #--------------------------------------------------------------------------
+    def _init_megacli_cmd(self):
+        """
+        Initializes self.megacli_cmd.
+        """
+
+        self._megacli_cmd = self._get_megacli_cmd()
+
+    #--------------------------------------------------------------------------
+    def _get_megacli_cmd(self, given_path = None):
+        """
+        Finding the executable 'MegaCli64', 'MegaCli' or 'megacli' under the
+        search path or the given path.
+
+        @param given_path: a possibly given path to MegaCli
+        @type given_path: str
+
+        @return: the found path to the megacli executable.
+        @rtype: str or None
+
+        """
+
+        def is_exe(fpath):
+            return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+        exe_names = ('MegaCli64', 'MegaCli', 'megacli')
+        if given_path:
+            # Normalize the given path, if it exists.
+            if os.path.isabs(given_path):
+                if not is_exe(given_path):
+                    return None
+                return os.path.realpath(given_path)
+            exe_names = (given_path,)
+
+        for exe_name in exe_names:
+            for path in os.environ["PATH"].split(os.pathsep):
+                path = path.strip('"')
+                exe_file = os.path.join(path, exe_name)
+                if is_exe(exe_file):
+                    return exe_file
+
+        return None
+
     #--------------------------------------------------------------------------
     def parse_args(self, args = None):
         """
@@ -134,6 +201,14 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         super(CheckMegaRaidPlugin, self).parse_args(args)
 
         self._adapter_nr = self.argparser.args.adapter_nr
+
+        if self.argparser.args.megacli_cmd:
+
+            megacli_cmd = self._get_megacli_cmd(self.argparser.args.megacli_cmd)
+            if not megacli_cmd:
+                self.die(("Could not find MegaCli command %r." %
+                        self.argparser.args.megacli_cmd))
+            self._megacli_cmd = megacli_cmd
 
     #--------------------------------------------------------------------------
     def __call__(self):
