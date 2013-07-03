@@ -51,6 +51,8 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
     adapter and its connected enclosures, physical drives and logical volumes.
     """
 
+    avail_commands = ['bbu']
+
     #--------------------------------------------------------------------------
     def __init__(self):
         """
@@ -79,6 +81,12 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         @type: str
         """
 
+        self._check_cmd = None
+        """
+        @ivar: The check command to execute
+        @type: str
+        """
+
         self._megacli_cmd = None
         """
         @ivar: the path to the executable MegaCli command
@@ -94,6 +102,12 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
     def adapter_nr(self):
         """The number of the MegaRaid adapter (e.g. 0)."""
         return self._adapter_nr
+
+    #------------------------------------------------------------
+    @property
+    def check_cmd(self):
+        """The check command to execute."""
+        return self._check_cmd
 
     #------------------------------------------------------------
     @property
@@ -114,6 +128,7 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         d = super(CheckMegaRaidPlugin, self).as_dict()
 
         d['adapter_nr'] = self.adapter_nr
+        d['check_cmd'] = self.check_cmd
         d['megacli_cmd'] = self.megacli_cmd
 
         return d
@@ -133,6 +148,16 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
                 default = 0,
                 help = ("The number of the MegaRaid adapter to check " + 
                         "(Default: %(default)d)."),
+        )
+
+        self.add_arg(
+                '-C', '--command',
+                metavar = 'CMD',
+                dest = 'command',
+                choices = self.avail_commands,
+                required = True,
+                help = ("The check command to execute, available commands " +
+                        "are: %s") % (str(self.avail_commands)),
         )
 
         self.add_arg(
@@ -178,6 +203,18 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
                 return os.path.realpath(given_path)
             exe_names = (given_path,)
 
+        search_paths = os.environ["PATH"].split(os.pathsep)
+        sbin_paths = (
+            os.sep + 'sbin',
+            os.sep + os.path.join('usr', 'sbin'),
+            os.sep + os.path.join('usr', 'local', 'sbin'),
+            os.sep + os.path.join('opt', 'bin'),
+            os.sep + os.path.join('opt', 'sbin'),
+        )
+        for sbin in sbin_paths:
+            if not sbin in search_paths:
+                search_paths.append(sbin)
+
         for exe_name in exe_names:
             for path in os.environ["PATH"].split(os.pathsep):
                 path = path.strip('"')
@@ -201,6 +238,7 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         super(CheckMegaRaidPlugin, self).parse_args(args)
 
         self._adapter_nr = self.argparser.args.adapter_nr
+        self._check_cmd = self.argparser.args.command
 
         if self.argparser.args.megacli_cmd:
 
@@ -218,6 +256,9 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
 
         self.parse_args()
         self.init_root_logger()
+
+        if not self.megacli_cmd:
+            self.die("Could not find 'MegaCli64' or 'MegaCli' in OS PATH.")
 
         state = nagios.state.ok
         out = "MegaRaid adapter %d seems to be okay." % (self.adapter_nr)
