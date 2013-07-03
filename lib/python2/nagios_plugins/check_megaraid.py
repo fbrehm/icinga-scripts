@@ -40,7 +40,7 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         """
 
         usage = """\
-                %(prog)s [-v] [-t <timeout>] [-a <adapter_nr> -P <HCA_port> [--rate <RATE>]
+                %(prog)s [-v] [-t <timeout>] -C <check_command> [-a <adapter_nr>]
                 """
         usage = textwrap.dedent(usage).strip()
         usage += '\n       %(prog)s --usage'
@@ -140,6 +140,16 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         """
 
         self.add_arg(
+                '-C', '--command',
+                metavar = 'CMD',
+                dest = 'command',
+                choices = self.avail_commands,
+                required = True,
+                help = ("The check command to execute, available commands " +
+                        "are: %s") % (str(self.avail_commands)),
+        )
+
+        self.add_arg(
                 '-a', '--adapter-nr',
                 metavar = 'NR',
                 dest = 'adapter_nr',
@@ -148,16 +158,6 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
                 default = 0,
                 help = ("The number of the MegaRaid adapter to check " + 
                         "(Default: %(default)d)."),
-        )
-
-        self.add_arg(
-                '-C', '--command',
-                metavar = 'CMD',
-                dest = 'command',
-                choices = self.avail_commands,
-                required = True,
-                help = ("The check command to execute, available commands " +
-                        "are: %s") % (str(self.avail_commands)),
         )
 
         self.add_arg(
