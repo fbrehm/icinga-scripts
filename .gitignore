@@ -4,3 +4,4 @@
 *.egg
 *-stamp
 *.egg-info
+*.log
