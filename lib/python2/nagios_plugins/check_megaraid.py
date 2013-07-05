@@ -14,6 +14,8 @@ import sys
 import re
 import logging
 import textwrap
+import subprocess
+import signal
 
 from numbers import Number
 
@@ -31,6 +33,8 @@ from nagios.plugin import NagiosPluginError
 from nagios.plugin.range import NagiosRange
 
 from nagios.plugin.threshold import NagiosThreshold
+
+from nagios.plugin.argparser import default_timeout
 
 from nagios.plugins import ExtNagiosPluginError
 from nagios.plugins import ExecutionTimeoutError
@@ -100,6 +104,12 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         @type: str
         """
 
+        self._timeout = default_timeout
+        """
+        @ivar: the timeout on execution of MegaCli in seconds
+        @type: int
+        """
+
         self._init_megacli_cmd()
 
     #------------------------------------------------------------
@@ -113,6 +123,12 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
     def megacli_cmd(self):
         """The path to the executable MegaCli command."""
         return self._megacli_cmd
+
+    #------------------------------------------------------------
+    @property
+    def timeout(self):
+        """The timeout on execution of MegaCli in seconds."""
+        return self._timeout
 
     #--------------------------------------------------------------------------
     def as_dict(self):
@@ -128,6 +144,7 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
 
         d['adapter_nr'] = self.adapter_nr
         d['megacli_cmd'] = self.megacli_cmd
+        d['timeout'] = self.timeout
 
         return d
 
@@ -229,6 +246,9 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
 
         self._adapter_nr = self.argparser.args.adapter_nr
 
+        if self.argparser.args.timeout:
+            self._timeout = self.argparser.args.timeout
+
         if self.argparser.args.megacli_cmd:
 
             megacli_cmd = self._get_megacli_cmd(self.argparser.args.megacli_cmd)
@@ -267,6 +287,73 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
 
         self.die("The method call() must be overridden in inherited class %r." % (
                 self.__class__.__name__))
+
+    #--------------------------------------------------------------------------
+    def megacli(self, args, nolog = True, no_adapter = False):
+        """
+        Method to call MegaCli directly with the given arguments.
+
+        @param args: the arguments given on calling the binary. If args is of
+                     type str, then this will used as a single argument in
+                     calling MegaCli (no shell command line splitting).
+        @type args: list of str or str
+        @param nolog: don't append -NoLog to the command line parameters
+        @type nolog: bool
+        @param no_adapter: don't append '-a<adapter_nr>' to the
+                           command line parameters
+        @type no_adapter: bool
+
+        @return: a tuple with four values:
+                 * the output on STDOUT
+                 * the output on STDERR
+                 * the return value to the operating system
+                 * the exit value extracted from output
+        @rtype: tuple
+
+        """
+
+        cmd_list = [self.megacli_cmd]
+        if args:
+            if isinstance(args, str):
+                cmd_list.append(args)
+            else:
+                for arg in args:
+                    cmd_list.append(arg)
+
+        if not no_adapter:
+            cmd_list.append('-a')
+            cmd_list.append(("%d" % (self.adapter_nr)))
+
+        if nolog:
+            cmd_list.append('-NoLog')
+
+        cmd_list = [str(element) for element in cmd_list]
+        if self.verbose > 1:
+            log.debug("Executing %r", cmd_list)
+
+        stdoutdata = ''
+        stderrdata = ''
+        ret = None
+
+        cmd_obj = subprocess.Popen(
+            cmd_list,
+            close_fds = False,
+            stderr = subprocess.PIPE,
+            stdout = subprocess.PIPE,
+        )
+
+        # Display Output of executable
+        (stdoutdata, stderrdata) = cmd_obj.communicate()
+
+        if stderrdata:
+            msg = "Output on StdErr: %r." % (stderrdata.strip())
+            log.debug(msg)
+
+        ret = cmd_obj.wait()
+        if self.verbose > 1:
+            log.debug("Returncode: %s" % (ret))
+
+        return (ret, stdoutdata, stderrdata)
 
 
 #==============================================================================
