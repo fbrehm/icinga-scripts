@@ -44,11 +44,13 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 log = logging.getLogger(__name__)
 
 re_exit_code = re.compile(r'^\s*Exit\s*Code\s*:\s+0x([0-9a-f]+)', re.IGNORECASE)
+re_no_adapter = re.compile(r'^\s*User\s+specified\s+controller\s+is\s+not\s+present',
+        re.IGNORECASE)
 
 #==============================================================================
 class MegaCliExecTimeoutError(ExtNagiosPluginError, IOError):
@@ -417,12 +419,19 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
             log.debug(msg)
 
         exit_code = ret
+        no_adapter_found = False
         if stdoutdata:
             for line in stdoutdata.splitlines():
+
+                if not no_adapter:
+                    if re_no_adapter.search(line):
+                        self.die('The specified controller %d is not present.' % (
+                                self.adapter_nr))
+
                 match = re_exit_code.search(line)
                 if match:
                     exit_code = int(match.group(1), 16)
-                    break
+                    continue
 
         return (stdoutdata, stderrdata, ret, exit_code)
 
