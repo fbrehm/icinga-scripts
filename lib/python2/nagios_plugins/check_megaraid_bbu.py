@@ -100,7 +100,12 @@ class CheckMegaRaidBBUPlugin(CheckMegaRaidPlugin):
         """
 
         state = nagios.state.ok
-        out = "MegaRaid adapter %d seems to be okay." % (self.adapter_nr)
+        out = "BBU of MegaRaid adapter %d seems to be okay." % (self.adapter_nr)
+
+        args = ('-AdpBbuCmd', '-GetBbuStatus')
+        (stdoutdata, stderrdata, ret, exit_code) = self.megacli(args)
+        if self.verbose > 2:
+            log.debug("Output on StdOut:\n%s", stdoutdata)
 
         self.exit(state, out)
 
