@@ -4,8 +4,8 @@
 @author: Frank Brehm
 @contact: frank.brehm@profitbricks.com
 @copyright: © 2010 - 2013 by Frank Brehm, Berlin
-@summary: Module for CheckMegaRaidPlugin class for a nagios/icinga plugin
-          to check a LSI MegaRaid adapter and volumes
+@summary: Module for a class for a nagios/icinga plugin to check the state
+          of the Battery Backup Unit (BBU) of a LSI MegaRaid adapter
 """
 
 # Standard modules
