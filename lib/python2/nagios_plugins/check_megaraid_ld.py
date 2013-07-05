@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 log = logging.getLogger(__name__)
 
@@ -223,6 +223,156 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
         self._ld_number = self.argparser.args.ld_nr
         if self.argparser.args.cached:
             self._cached = True
+
+    #--------------------------------------------------------------------------
+    def call(self):
+        """
+        Method to call the plugin directly.
+        """
+
+        state = nagios.state.ok
+        out = "LD %d of MegaRaid adapter %d seems to be okay." % (
+                self.ld_number, self.adapter_nr)
+
+        # Adapter 0: Virtual Drive 55 Does not Exist.
+        re_not_exists = re.compile(r'^.*Virtual\s+Drive\s+\d+\s+Does\s+not\s+Exist\.',
+                re.IGNORECASE)
+        # RAID Level          : Primary-1, Secondary-0, RAID Level Qualifier-0
+        re_raid_level = re.compile(r'^\s*RAID\s+Level\s*:\s+Primary-(\d+)',
+                re.IGNORECASE)
+        # Size                : 2.728 TB
+        re_size = re.compile(r'^\s*Size\s*:\s+(\d+(?:\.\d*)?)\s*(\S+)?',
+                re.IGNORECASE)
+        # State               : Optimal
+        re_state = re.compile(r'^\s*State\s*:\s+(\S+)', re.IGNORECASE)
+        #Number Of Drives    : 2
+        re_number = re.compile(r'^\s*Number\s+Of\s+Drives\s*:\s+(\d+)',
+                re.IGNORECASE)
+        # Span Depth          : 1
+        re_span = re.compile(r'^\s*Span\s+Depth\s*:\s+(\d+)', re.IGNORECASE)
+        # Is VD Cached: Yes
+        # Is VD Cached: No
+        re_cached = re.compile(r'^\s*Is\s+VD\s+Cached\s*:\s+(\S+)',
+                re.IGNORECASE)
+        # Check Consistency: Completed 95%, Taken 8 min
+        re_consist = re.compile(r'Check\s+Consistency\s*:\s+Completed\s+(\d+)%,\s+Taken\s+(\d+)\s*min',
+                re.IGNORECASE)
+
+        raid_level = None
+        size_val = None
+        size_unit = None
+        ld_state = None
+        pd_number = None
+        span_depth = None
+        ld_cached = None
+        consist_percent = None
+        consist_min = None
+
+        args = ('-LdInfo', '-L', ("%d" % (self.ld_number)))
+        (stdoutdata, stderrdata, ret, exit_code) = self.megacli(args)
+        if self.verbose > 2:
+            log.debug("Output on StdOut:\n%s", stdoutdata)
+
+        for line in stdoutdata.splitlines():
+
+            line = line.strip()
+
+            # Logical Drive not exists
+            if re_not_exists.search(line):
+                self.die(line)
+
+            match = re_raid_level.search(line)
+            if match:
+                raid_level = int(match.group(1))
+                continue
+
+            match = re_size.search(line)
+            if match:
+                size_val = float(match.group(1))
+                size_unit = match.group(2)
+                continue
+
+            match = re_state.search(line)
+            if match:
+                ld_state = match.group(1)
+                continue
+
+            match = re_number.search(line)
+            if match:
+                pd_number = int(match.group(1))
+                continue
+
+            match = re_span.search(line)
+            if match:
+                span_depth = int(match.group(1))
+                continue
+
+            match = re_cached.search(line)
+            if match:
+                ld_cached = match.group(1)
+
+            match = re_consist.search(line)
+            if match:
+                consist_percent = int(match.group(1))
+                consist_min = int(match.group(2))
+
+
+        if exit_code:
+            state = nagios.state.critical
+        elif not ld_state:
+            state = nagios.state.critical
+            ld_state = 'unknown'
+        elif ld_state.lower() != 'optimal':
+            state = nagios.state.critical
+
+        if consist_percent is not None:
+            state = max_state(state, nagios.state.warning)
+
+        cached_out = ', cached: No'
+        if ld_cached:
+            cached_out = ', cached: %s' % (ld_cached)
+        if self.cached:
+           if not ld_cached or ld_cached.lower() != 'yes':
+                state = max_state(state, nagios.state.warning)
+
+        pd_count = 9999
+        if pd_number:
+            pd_count = pd_number
+            if span_depth and span_depth > 1:
+                pd_count = pd_number * span_depth
+                if raid_level < 10:
+                    raid_level *= 10
+
+        if size_unit and size_unit.lower() in ('mb', 'gb', 'tb', 'pb'):
+
+            mbytes = size_val
+
+            if size_unit.lower() == 'gb':
+                mbytes *= 1024
+            elif size_unit.lower() == 'tb':
+                mbytes *= 1024 * 1024
+            elif size_unit.lower() == 'pb':
+                mbytes *= 1024 * 1024 * 1024
+            mbytes = int(mbytes)
+
+            self.add_perfdata(
+                    label = ('Size_Ld_%d' % (self.ld_number)),
+                    value = mbytes,
+                    uom = 'MiB',
+            )
+
+        size_out = ''
+        if size_val:
+            if size_unit:
+                size_out = ', %s %s' % (str(size_val), size_unit)
+            else:
+                size_out = ', %s' % (str(size_val))
+
+        out = "State of LD %d of MegaRaid adapter %d (RAID-%d, %d drives%s%s): %s." % (
+                self.ld_number, self.adapter_nr, raid_level, pd_count,
+                size_out, cached_out, ld_state)
+
+        self.exit(state, out)
 
 #==============================================================================
 
