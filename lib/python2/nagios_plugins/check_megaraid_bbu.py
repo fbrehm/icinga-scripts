@@ -47,6 +47,10 @@ __version__ = '0.1.0'
 
 log = logging.getLogger(__name__)
 
+re_batt_type = re.compile(r'^\s*BatteryType\s*:\s*(\S+.*)', re.IGNORECASE)
+re_batt_state = re.compile(r'^\s*Battery\s*State\s*:\s*(\S+.*)', re.IGNORECASE)
+
+
 #==============================================================================
 class CheckMegaRaidBBUPlugin(CheckMegaRaidPlugin):
     """
@@ -106,6 +110,34 @@ class CheckMegaRaidBBUPlugin(CheckMegaRaidPlugin):
         (stdoutdata, stderrdata, ret, exit_code) = self.megacli(args)
         if self.verbose > 2:
             log.debug("Output on StdOut:\n%s", stdoutdata)
+
+        batt_type = 'unknown'
+        batt_state = None
+
+        for line in stdoutdata.splitlines():
+
+            line = line.strip()
+            
+            match = re_batt_type.search(line)
+            if match:
+                batt_type = match.group(1)
+                continue
+
+            match = re_batt_state.search(line)
+            if match:
+                batt_state = match.group(1)
+                continue
+
+        if exit_code:
+            state = nagios.state.critical
+        elif not batt_state:
+            state = nagios.state.critical
+            batt_state = 'unknown'
+        elif batt_state.lower() != 'optimal':
+            state = nagios.state.critical
+
+        out = "State of BBU of MegaRaid adapter %d (type %s): %s" % (
+                self.adapter_nr, batt_type, batt_state)
 
         self.exit(state, out)
 
