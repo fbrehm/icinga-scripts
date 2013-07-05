@@ -110,7 +110,119 @@ Cache Cade Type : Read Only
 Exit Code: 0x00
 """
 
+#==============================================================================
+class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
+    """
+    A special NagiosPlugin class for checking the state of a Logical Drive of a
+    LSI MegaRaid adapter.
+    """
 
+    #--------------------------------------------------------------------------
+    def __init__(self):
+        """
+        Constructor of the CheckMegaRaidLdPlugin class.
+        """
+
+        usage = """\
+                %(prog)s [-v] [-a <adapter_nr>] -l <drive_nr> [--cached]
+                """
+        usage = textwrap.dedent(usage).strip()
+        usage += '\n       %(prog)s --usage'
+        usage += '\n       %(prog)s --help'
+
+        blurb = "Copyright (c) 2013 Frank Brehm, Berlin.\n\n"
+        blurb += "Checks the state of a Logical Drive of a LSI MegaRaid adapter."
+
+        super(CheckMegaRaidLdPlugin, self).__init__(
+                usage = usage, blurb = blurb,
+                version = __version__,
+        )
+
+        self._ld_number = None
+        """
+        @ivar: the number of the Logical Drive to check
+        @type: int
+        """
+
+        self._cached = False
+        """
+        @ivar: checking, whether the LD is cached by CacheCade
+        @type: bool
+        """
+
+        self._add_args()
+
+    #------------------------------------------------------------
+    @property
+    def ld_number(self):
+        """The number of the Logical Drive to check."""
+        return self._ld_number
+
+    #------------------------------------------------------------
+    @property
+    def cached(self):
+        """Checking, whether the LD is cached by CacheCade."""
+        return self._cached
+
+    #--------------------------------------------------------------------------
+    def as_dict(self):
+        """
+        Typecasting into a dictionary.
+
+        @return: structure as dict
+        @rtype:  dict
+
+        """
+
+        d = super(CheckMegaRaidLdPlugin, self).as_dict()
+
+        d['ld_number'] = self.ld_number
+        d['cached'] = self.cached
+
+        return d
+
+    #--------------------------------------------------------------------------
+    def _add_args(self):
+        """
+        Adding all necessary arguments to the commandline argument parser.
+        """
+
+        self.add_arg(
+                '-l', '--ld-nr',
+                metavar = 'NR',
+                dest = 'ld_nr',
+                required = True,
+                type = int,
+                help = "The number of the Logical Drive to check (mandantory).",
+        )
+
+        self.add_arg(
+                '--cached',
+                action = 'store_true',
+                dest = 'cached',
+                help = "Checking, whether the LD is cached by CacheCade.",
+        )
+
+        super(CheckMegaRaidLdPlugin, self)._add_args()
+
+    #--------------------------------------------------------------------------
+    def parse_args(self, args = None):
+        """
+        Executes self.argparser.parse_args().
+
+        If overridden by successors, it should be called via super().
+
+        @param args: the argument strings to parse. If not given, they are
+                     taken from sys.argv.
+        @type args: list of str or None
+
+        """
+
+        super(CheckMegaRaidLdPlugin, self).parse_args(args)
+
+        self._ld_number = self.argparser.args.ld_nr
+        if self.argparser.args.cached:
+            self._cached = True
 
 #==============================================================================
 
