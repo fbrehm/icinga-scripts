@@ -5,8 +5,7 @@
 @contact: frank.brehm@profitbricks.com
 @copyright: © 2010 - 2013 by Frank Brehm, Berlin
 @summary: Nagios plugin ≡ check script to check the state
-          of a LSI MegaRaid adapter and its connected enclosures,
-          physical drives and logical volumes.
+          of the BBU of a LSI MegaRaid adapter.
 """
 
 # Standard modules
@@ -42,13 +41,13 @@ del pylibdir
 
 try:
     import nagios_plugins
-    from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
+    from nagios_plugins.check_megaraid_bbu import CheckMegaRaidBBUPlugin
 except ImportError, e:
     sys.stderr.write("Import error.\n")
     print str(e)
     sys.exit(3)
 
-plugin = CheckMegaRaidPlugin()
+plugin = CheckMegaRaidBBUPlugin()
 plugin()
 
 #==============================================================================

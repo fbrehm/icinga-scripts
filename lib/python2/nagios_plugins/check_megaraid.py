@@ -40,7 +40,7 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 log = logging.getLogger(__name__)
 
@@ -51,39 +51,46 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
     adapter and its connected enclosures, physical drives and logical volumes.
     """
 
-    avail_commands = ['bbu']
-
     #--------------------------------------------------------------------------
-    def __init__(self):
+    def __init__(self, usage = None, shortname = None, version = None,
+            blurb = None,):
         """
         Constructor of the CheckMegaRaidPlugin class.
+
+        @param usage: Short usage message used with --usage/-? and with missing
+                      required arguments, and included in the longer --help
+                      output. Can include %(prog)s placeholder which will be
+                      replaced with the plugin name, e.g.::
+
+                          usage = 'Usage: %(prog)s -H <hostname> -p <ports> [-v]'
+
+        @type usage: str
+        @param shortname: the shortname of the plugin
+        @type shortname: str
+        @param version: Plugin version number, included in the --version/-V
+                        output, and in the longer --help output. e.g.::
+
+                            $ ./check_tcp_range --version
+                            check_tcp_range 0.2 [http://www.openfusion.com.au/labs/nagios/]
+        @type version: str
+        @param blurb: Short plugin description, included in the longer
+                      --help output. Maybe omitted.
+        @type blurb: str or None
+
         """
 
-        usage = """\
-                %(prog)s [-v] [-t <timeout>] -C <check_command> [-a <adapter_nr>]
-                """
-        usage = textwrap.dedent(usage).strip()
-        usage += '\n       %(prog)s --usage'
-        usage += '\n       %(prog)s --help'
-
-        blurb = "Copyright (c) 2013 Frank Brehm, Berlin.\n\n"
-        blurb += "Checks the state of a LSI MegaRaid adapter and its connected "
-        blurb += "enclosures, physical drives and logical volumes."
+        used_version = __version__
+        if version:
+            used_version = str(version) + (' (%s)' % (__version__))
 
         super(CheckMegaRaidPlugin, self).__init__(
-                usage = usage, blurb = blurb,
-                version = __version__,
+                usage = usage, blurb = blurb, shortname = shortname,
+                version = used_version,
         )
 
         self._adapter_nr = 0
         """
         @ivar: the number of the MegaRaid adapter (e.g. 0)
-        @type: str
-        """
-
-        self._check_cmd = None
-        """
-        @ivar: The check command to execute
         @type: str
         """
 
@@ -95,19 +102,11 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
 
         self._init_megacli_cmd()
 
-        self._add_args()
-
     #------------------------------------------------------------
     @property
     def adapter_nr(self):
         """The number of the MegaRaid adapter (e.g. 0)."""
         return self._adapter_nr
-
-    #------------------------------------------------------------
-    @property
-    def check_cmd(self):
-        """The check command to execute."""
-        return self._check_cmd
 
     #------------------------------------------------------------
     @property
@@ -128,7 +127,6 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         d = super(CheckMegaRaidPlugin, self).as_dict()
 
         d['adapter_nr'] = self.adapter_nr
-        d['check_cmd'] = self.check_cmd
         d['megacli_cmd'] = self.megacli_cmd
 
         return d
@@ -138,16 +136,6 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         """
         Adding all necessary arguments to the commandline argument parser.
         """
-
-        self.add_arg(
-                '-C', '--command',
-                metavar = 'CMD',
-                dest = 'command',
-                choices = self.avail_commands,
-                required = True,
-                help = ("The check command to execute, available commands " +
-                        "are: %s") % (str(self.avail_commands)),
-        )
 
         self.add_arg(
                 '-a', '--adapter-nr',
@@ -229,6 +217,8 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         """
         Executes self.argparser.parse_args().
 
+        If overridden by successors, it should be called via super().
+
         @param args: the argument strings to parse. If not given, they are
                      taken from sys.argv.
         @type args: list of str or None
@@ -238,7 +228,6 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         super(CheckMegaRaidPlugin, self).parse_args(args)
 
         self._adapter_nr = self.argparser.args.adapter_nr
-        self._check_cmd = self.argparser.args.command
 
         if self.argparser.args.megacli_cmd:
 
@@ -249,9 +238,9 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
             self._megacli_cmd = megacli_cmd
 
     #--------------------------------------------------------------------------
-    def __call__(self):
+    def pre_call(self):
         """
-        Method to call the plugin directly.
+        A method, which is called before the underlaying actions are called.
         """
 
         self.parse_args()
@@ -260,14 +249,25 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         if not self.megacli_cmd:
             self.die("Could not find 'MegaCli64' or 'MegaCli' in OS PATH.")
 
-        state = nagios.state.ok
-        out = "MegaRaid adapter %d seems to be okay." % (self.adapter_nr)
+    #--------------------------------------------------------------------------
+    def __call__(self):
+
+        self.pre_call()
 
         if self.verbose > 2:
             log.debug("Current object:\n%s", pp(self.as_dict()))
 
-        # Checking directories in sysfs ...
-        self.exit(state, out)
+        self.call()
+
+    #--------------------------------------------------------------------------
+    def call(self):
+        """
+        Method to call the plugin directly.
+        """
+
+        self.die("The method call() must be overridden in inherited class %r." % (
+                self.__class__.__name__))
+
 
 #==============================================================================
 
