@@ -14,6 +14,8 @@ import sys
 import re
 import logging
 import textwrap
+import subprocess
+import signal
 
 from numbers import Number
 
@@ -32,6 +34,8 @@ from nagios.plugin.range import NagiosRange
 
 from nagios.plugin.threshold import NagiosThreshold
 
+from nagios.plugin.argparser import default_timeout
+
 from nagios.plugins import ExtNagiosPluginError
 from nagios.plugins import ExecutionTimeoutError
 from nagios.plugins import CommandNotFoundError
@@ -40,9 +44,49 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.3.1'
 
 log = logging.getLogger(__name__)
+
+re_exit_code = re.compile(r'^\s*Exit\s*Code\s*:\s+0x([0-9a-f]+)', re.IGNORECASE)
+re_no_adapter = re.compile(r'^\s*User\s+specified\s+controller\s+is\s+not\s+present',
+        re.IGNORECASE)
+
+#==============================================================================
+class MegaCliExecTimeoutError(ExtNagiosPluginError, IOError):
+    """
+    Special error class indicating a timout error on
+    executing MegaCli.
+    """
+
+    #--------------------------------------------------------------------------
+    def __init__(self, timeout, cmdline):
+        """
+        Constructor.
+
+        @param timeout: the timout in seconds leading to the error
+        @type timeout: float
+        @param filename: the commandline leading to the error
+        @type filename: str
+
+        """
+
+        t_o = None
+        try:
+            t_o = float(timeout)
+        except ValueError:
+            pass
+        self.timeout = t_o
+
+        self.cmdline = cmdline
+
+    #--------------------------------------------------------------------------
+    def __str__(self):
+
+        msg = "Error executing: %s (timeout after %0.1f secs)" % (
+                self.cmdline, self.timeout)
+
+        return msg
 
 #==============================================================================
 class CheckMegaRaidPlugin(ExtNagiosPlugin):
@@ -51,39 +95,46 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
     adapter and its connected enclosures, physical drives and logical volumes.
     """
 
-    avail_commands = ['bbu']
-
     #--------------------------------------------------------------------------
-    def __init__(self):
+    def __init__(self, usage = None, shortname = None, version = None,
+            blurb = None,):
         """
         Constructor of the CheckMegaRaidPlugin class.
+
+        @param usage: Short usage message used with --usage/-? and with missing
+                      required arguments, and included in the longer --help
+                      output. Can include %(prog)s placeholder which will be
+                      replaced with the plugin name, e.g.::
+
+                          usage = 'Usage: %(prog)s -H <hostname> -p <ports> [-v]'
+
+        @type usage: str
+        @param shortname: the shortname of the plugin
+        @type shortname: str
+        @param version: Plugin version number, included in the --version/-V
+                        output, and in the longer --help output. e.g.::
+
+                            $ ./check_tcp_range --version
+                            check_tcp_range 0.2 [http://www.openfusion.com.au/labs/nagios/]
+        @type version: str
+        @param blurb: Short plugin description, included in the longer
+                      --help output. Maybe omitted.
+        @type blurb: str or None
+
         """
 
-        usage = """\
-                %(prog)s [-v] [-t <timeout>] -C <check_command> [-a <adapter_nr>]
-                """
-        usage = textwrap.dedent(usage).strip()
-        usage += '\n       %(prog)s --usage'
-        usage += '\n       %(prog)s --help'
-
-        blurb = "Copyright (c) 2013 Frank Brehm, Berlin.\n\n"
-        blurb += "Checks the state of a LSI MegaRaid adapter and its connected "
-        blurb += "enclosures, physical drives and logical volumes."
+        used_version = __version__
+        if version:
+            used_version = str(version) + (' (%s)' % (__version__))
 
         super(CheckMegaRaidPlugin, self).__init__(
-                usage = usage, blurb = blurb,
-                version = __version__,
+                usage = usage, blurb = blurb, shortname = shortname,
+                version = used_version,
         )
 
         self._adapter_nr = 0
         """
         @ivar: the number of the MegaRaid adapter (e.g. 0)
-        @type: str
-        """
-
-        self._check_cmd = None
-        """
-        @ivar: The check command to execute
         @type: str
         """
 
@@ -93,9 +144,13 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         @type: str
         """
 
-        self._init_megacli_cmd()
+        self._timeout = default_timeout
+        """
+        @ivar: the timeout on execution of MegaCli in seconds
+        @type: int
+        """
 
-        self._add_args()
+        self._init_megacli_cmd()
 
     #------------------------------------------------------------
     @property
@@ -105,15 +160,15 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
 
     #------------------------------------------------------------
     @property
-    def check_cmd(self):
-        """The check command to execute."""
-        return self._check_cmd
-
-    #------------------------------------------------------------
-    @property
     def megacli_cmd(self):
         """The path to the executable MegaCli command."""
         return self._megacli_cmd
+
+    #------------------------------------------------------------
+    @property
+    def timeout(self):
+        """The timeout on execution of MegaCli in seconds."""
+        return self._timeout
 
     #--------------------------------------------------------------------------
     def as_dict(self):
@@ -128,8 +183,8 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         d = super(CheckMegaRaidPlugin, self).as_dict()
 
         d['adapter_nr'] = self.adapter_nr
-        d['check_cmd'] = self.check_cmd
         d['megacli_cmd'] = self.megacli_cmd
+        d['timeout'] = self.timeout
 
         return d
 
@@ -138,16 +193,6 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         """
         Adding all necessary arguments to the commandline argument parser.
         """
-
-        self.add_arg(
-                '-C', '--command',
-                metavar = 'CMD',
-                dest = 'command',
-                choices = self.avail_commands,
-                required = True,
-                help = ("The check command to execute, available commands " +
-                        "are: %s") % (str(self.avail_commands)),
-        )
 
         self.add_arg(
                 '-a', '--adapter-nr',
@@ -229,6 +274,8 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         """
         Executes self.argparser.parse_args().
 
+        If overridden by successors, it should be called via super().
+
         @param args: the argument strings to parse. If not given, they are
                      taken from sys.argv.
         @type args: list of str or None
@@ -238,7 +285,9 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         super(CheckMegaRaidPlugin, self).parse_args(args)
 
         self._adapter_nr = self.argparser.args.adapter_nr
-        self._check_cmd = self.argparser.args.command
+
+        if self.argparser.args.timeout:
+            self._timeout = self.argparser.args.timeout
 
         if self.argparser.args.megacli_cmd:
 
@@ -249,9 +298,9 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
             self._megacli_cmd = megacli_cmd
 
     #--------------------------------------------------------------------------
-    def __call__(self):
+    def pre_call(self):
         """
-        Method to call the plugin directly.
+        A method, which is called before the underlaying actions are called.
         """
 
         self.parse_args()
@@ -260,14 +309,132 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
         if not self.megacli_cmd:
             self.die("Could not find 'MegaCli64' or 'MegaCli' in OS PATH.")
 
-        state = nagios.state.ok
-        out = "MegaRaid adapter %d seems to be okay." % (self.adapter_nr)
+    #--------------------------------------------------------------------------
+    def __call__(self):
+
+        self.pre_call()
 
         if self.verbose > 2:
             log.debug("Current object:\n%s", pp(self.as_dict()))
 
-        # Checking directories in sysfs ...
-        self.exit(state, out)
+        self.call()
+
+    #--------------------------------------------------------------------------
+    def call(self):
+        """
+        Method to call the plugin directly.
+        """
+
+        self.die("The method call() must be overridden in inherited class %r." % (
+                self.__class__.__name__))
+
+    #--------------------------------------------------------------------------
+    def megacli(self, args, nolog = True, no_adapter = False):
+        """
+        Method to call MegaCli directly with the given arguments.
+
+        @param args: the arguments given on calling the binary. If args is of
+                     type str, then this will used as a single argument in
+                     calling MegaCli (no shell command line splitting).
+        @type args: list of str or str
+        @param nolog: don't append -NoLog to the command line parameters
+        @type nolog: bool
+        @param no_adapter: don't append '-a<adapter_nr>' to the
+                           command line parameters
+        @type no_adapter: bool
+
+        @return: a tuple with four values:
+                 * the output on STDOUT
+                 * the output on STDERR
+                 * the return value to the operating system
+                 * the exit value extracted from output
+        @rtype: tuple
+
+        """
+
+        cmd_list = [self.megacli_cmd]
+        if args:
+            if isinstance(args, str):
+                cmd_list.append(args)
+            else:
+                for arg in args:
+                    cmd_list.append(arg)
+
+        if not no_adapter:
+            cmd_list.append('-a')
+            cmd_list.append(("%d" % (self.adapter_nr)))
+
+        if nolog:
+            cmd_list.append('-NoLog')
+
+        cmd_list = [str(element) for element in cmd_list]
+        cmd_str = self.megacli_cmd
+        for arg in cmd_list[1:]:
+            cmd_str += ' ' + ("%r" % (arg))
+        if self.verbose > 1:
+            log.debug("Executing: %s", cmd_str)
+
+        stdoutdata = ''
+        stderrdata = ''
+        ret = None
+        timeout = abs(int(self.timeout))
+
+        def exec_alarm_caller(signum, sigframe):
+            '''
+            This nested function will be called in event of a timeout
+
+            @param signum:   the signal number (POSIX) which happend
+            @type signum:    int
+            @param sigframe: the frame of the signal
+            @type sigframe:  object
+            '''
+
+            raise MegaCliExecTimeoutError(timeout, cmd_str)
+
+        signal.signal(signal.SIGALRM, exec_alarm_caller)
+        signal.alarm(timeout)
+
+        # And execute it ...
+        try:
+            cmd_obj = subprocess.Popen(
+                    cmd_list,
+                    close_fds = False,
+                    stderr = subprocess.PIPE,
+                    stdout = subprocess.PIPE,
+            )
+
+            (stdoutdata, stderrdata) = cmd_obj.communicate()
+            ret = cmd_obj.wait()
+
+        except MegaCliExecTimeoutError, e:
+            self.die(str(e))
+
+        finally:
+            signal.alarm(0)
+
+        if self.verbose > 1:
+            log.debug("Returncode: %s" % (ret))
+        if stderrdata:
+            msg = "Output on StdErr: %r." % (stderrdata.strip())
+            log.debug(msg)
+
+        exit_code = ret
+        no_adapter_found = False
+        if stdoutdata:
+            for line in stdoutdata.splitlines():
+
+                if not no_adapter:
+                    if re_no_adapter.search(line):
+                        self.die('The specified controller %d is not present.' % (
+                                self.adapter_nr))
+
+                match = re_exit_code.search(line)
+                if match:
+                    exit_code = int(match.group(1), 16)
+                    continue
+
+        return (stdoutdata, stderrdata, ret, exit_code)
+
 
 #==============================================================================
 
