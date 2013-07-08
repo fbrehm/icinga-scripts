@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 log = logging.getLogger(__name__)
 
@@ -77,7 +77,42 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
                 version = __version__,
         )
 
+        self._critical_number = NagiosRange('1:')
+
+        self._warning_number = NagiosRange('2:')
+
         self._add_args()
+
+    #------------------------------------------------------------
+    @property
+    def critical_number(self):
+        """The number of hotspare drives, where it becomes critical, if
+        the number of existing hotspares is below."""
+        return self._critical_number
+
+    #------------------------------------------------------------
+    @property
+    def warning_number(self):
+        """The number of hotspare drives, where it becomes a warning, if
+        the number of existing hotspares is below."""
+        return self._warning_number
+
+    #--------------------------------------------------------------------------
+    def as_dict(self):
+        """
+        Typecasting into a dictionary.
+
+        @return: structure as dict
+        @rtype:  dict
+
+        """
+
+        d = super(CheckMegaRaidHotsparePlugin, self).as_dict()
+
+        d['critical_number'] = self.critical_number
+        d['warning_number'] = self.warning_number
+
+        return d
 
 
 #==============================================================================
