@@ -189,6 +189,11 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
                     "'%s').") % (warn, crit)
             self.die(msg)
 
+        self.set_thresholds(
+                warning = warn,
+                critical = crit,
+        )
+
     #--------------------------------------------------------------------------
     def call(self):
         """
@@ -226,16 +231,21 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
 
         log.debug("Found %d drives, %d hotspares.", drives_total, found_hotspares)
 
-        if found_hotspares not in self.critical_number:
-            state = nagios.state.critical
-            out = "found %d hotspare(s) (%d needed)." % (
-                    found_hotspares, self.critical_number.start)
-        elif found_hotspares not in self.warning_number:
-            state = nagios.state.warning
-            out = "found %d hotspare(s) (%d needed)." % (
-                    found_hotspares, self.warning_number.start)
-        else:
-            out = "found %d hotspare(s)." % (found_hotspares)
+        state = self.threshold.get_status(found_hotspares)
+        out = "found %d hotspare(s)." % (found_hotspares)
+
+        self.add_perfdata(
+                label = 'hotspares',
+                value = found_hotspares,
+                uom = '',
+                threshold = self.threshold,
+        )
+
+        self.add_perfdata(
+                label = 'drives_total',
+                value = drives_total,
+                uom = '',
+        )
 
         self.exit(state, out)
 
