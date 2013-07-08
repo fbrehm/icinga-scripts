@@ -343,24 +343,6 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
                 if raid_level < 10:
                     raid_level *= 10
 
-        if size_unit and size_unit.lower() in ('mb', 'gb', 'tb', 'pb'):
-
-            mbytes = size_val
-
-            if size_unit.lower() == 'gb':
-                mbytes *= 1024
-            elif size_unit.lower() == 'tb':
-                mbytes *= 1024 * 1024
-            elif size_unit.lower() == 'pb':
-                mbytes *= 1024 * 1024 * 1024
-            mbytes = int(mbytes)
-
-            self.add_perfdata(
-                    label = ('Size_Ld_%d' % (self.ld_number)),
-                    value = mbytes,
-                    uom = 'MiB',
-            )
-
         size_out = ''
         if size_val:
             if size_unit:
