@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 log = logging.getLogger(__name__)
 
@@ -188,6 +188,56 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
                     "the critical number (given warning: '%s', critical " +
                     "'%s').") % (warn, crit)
             self.die(msg)
+
+    #--------------------------------------------------------------------------
+    def call(self):
+        """
+        Method to call the plugin directly.
+        """
+
+        state = nagios.state.ok
+        out = "Number of existing hotspares of MegaRaid adapter %d seems to be okay." % (
+                self.adapter_nr)
+
+        # Slot Number: 23
+        re_slot = re.compile(r'^\s*Slot\s+Number\s*:\s*\d+', re.IGNORECASE)
+
+        #
+        re_fw = re.compile(r'^\s*Firmware\s+state\s*:\s*(\w+),?', re.IGNORECASE)
+
+        found_hotspares = 0
+        drives_total = 0
+        args = ('-PdList',)
+        (stdoutdata, stderrdata, ret, exit_code) = self.megacli(args)
+        if self.verbose > 3:
+            log.debug("Output on StdOut:\n%s", stdoutdata)
+
+        for line in stdoutdata.splitlines():
+
+            line = line.strip()
+
+            if re_slot.search(line):
+                drives_total += 1
+                continue
+
+            match = re_fw.search(line)
+            if match and match.group(1).lower() == 'hotspare':
+                found_hotspares += 1
+
+        log.debug("Found %d drives, %d hotspares.", drives_total, found_hotspares)
+
+        if found_hotspares not in self.critical_number:
+            state = nagios.state.critical
+            out = "found %d hotspare(s) (%d needed)." % (
+                    found_hotspares, self.critical_number.start)
+        elif found_hotspares not in self.warning_number:
+            state = nagios.state.warning
+            out = "found %d hotspare(s) (%d needed)." % (
+                    found_hotspares, self.warning_number.start)
+        else:
+            out = "found %d hotspare(s)." % (found_hotspares)
+
+        self.exit(state, out)
 
 #==============================================================================
 
