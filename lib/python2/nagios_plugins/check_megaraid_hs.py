@@ -109,8 +109,8 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
 
         d = super(CheckMegaRaidHotsparePlugin, self).as_dict()
 
-        d['critical_number'] = self.critical_number
-        d['warning_number'] = self.warning_number
+        d['critical_number'] = self.critical_number.as_dict()
+        d['warning_number'] = self.warning_number.as_dict()
 
         return d
 
