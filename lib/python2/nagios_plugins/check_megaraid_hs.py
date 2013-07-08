@@ -63,7 +63,7 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
         """
 
         usage = """\
-                %(prog)s [-v] [-a <adapter_nr>] -c <critical_hotspares> -w <warning_hotspares>
+                %(prog)s [-v] [-a <adapter_nr>] -c <critical_hotspares>: -w <warning_hotspares>:
                 """
         usage = textwrap.dedent(usage).strip()
         usage += '\n       %(prog)s --usage'
@@ -114,6 +114,80 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
 
         return d
 
+    #--------------------------------------------------------------------------
+    def _add_args(self):
+        """
+        Adding all necessary arguments to the commandline argument parser.
+        """
+
+        help_c = """\
+                The number of hotspare drives, where it becomes critical,
+                if the number of existing hotspares is below (mandantory,
+                default: '%(default)s').
+                """
+        help_c = textwrap.dedent(help_c).replace('\n', ' ').strip()
+        self.add_arg(
+                '-c', '--critical',
+                metavar = 'DRIVES:',
+                dest = 'critical',
+                required = True,
+                type = NagiosRange,
+                default = self.critical_number,
+                help = help_c,
+        )
+
+        help_w = """\
+                The number of hotspare drives, where it becomes a warning,
+                if the number of existing hotspares is below (mandantory,
+                default: '%(default)s').
+                """
+        help_w = textwrap.dedent(help_w).replace('\n', ' ').strip()
+        self.add_arg(
+                '-w', '--warning',
+                metavar = 'DRIVES:',
+                dest = 'warning',
+                required = True,
+                type = NagiosRange,
+                default = self.warning_number,
+                help = help_w,
+        )
+
+        super(CheckMegaRaidHotsparePlugin, self)._add_args()
+
+    #--------------------------------------------------------------------------
+    def parse_args(self, args = None):
+        """
+        Executes self.argparser.parse_args().
+
+        If overridden by successors, it should be called via super().
+
+        @param args: the argument strings to parse. If not given, they are
+                     taken from sys.argv.
+        @type args: list of str or None
+
+        """
+
+        super(CheckMegaRaidHotsparePlugin, self).parse_args(args)
+
+        crit = self.argparser.args.critical
+        if not crit.end is None:
+            msg = ("The critical hot spare number must be given with an " +
+                    "ending colon, e.g. '1:' (given %s).") % (crit)
+            self.die(msg)
+        self._critical_number = crit
+
+        warn = self.argparser.args.warning
+        if not warn.end is None:
+            msg = ("The warning hot spare number must be given with an " +
+                    "ending colon, e.g. '2:' (given %s).") % (warn)
+            self.die(msg)
+        self._warning_number = warn
+
+        if crit.start > warn.start:
+            msg = ("The warning number must be greater than or equal to " +
+                    "the critical number (given warning: '%s', critical " +
+                    "'%s').") % (warn, crit)
+            self.die(msg)
 
 #==============================================================================
 
