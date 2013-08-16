@@ -41,7 +41,7 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +55,17 @@ XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <command>info</command>
 </pjd>
 """
+
+#==============================================================================
+class SocketTransportError(NagiosPluginError):
+    '''
+    Base error class
+    '''
+    pass
+
+#==============================================================================
+class NoListeningError(SocketTransportError):
+    pass
 
 #==============================================================================
 class CheckPpdInstancePlugin(ExtNagiosPlugin):
