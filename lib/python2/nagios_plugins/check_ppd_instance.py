@@ -63,8 +63,8 @@ XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 """
 
 SIGNAL_NAMES = {
-    signal.SIGHUP: 'HUP',
-    signal.SIGINT: 'INT',
+    signal.SIGHUP:  'HUP',
+    signal.SIGINT:  'INT',
     signal.SIGABRT: 'ABRT',
     signal.SIGTERM: 'TERM',
     signal.SIGKILL: 'KILL',
@@ -72,16 +72,133 @@ SIGNAL_NAMES = {
     signal.SIGUSR2: 'USR2',
 }
 
+STATUS = {
+    'unknown':          0,
+    'progress':         3,
+    'failed':           4,
+    'succeeded':        5,
+    'in_progress_cont': 6,
+    'continuing':       10,
+}
+
+re_parse_result = re.compile(r'^([^,]+),(\d+),(\d+),(.*)$')
+
 #==============================================================================
 class SocketTransportError(NagiosPluginError):
-    '''
-    Base error class
-    '''
     pass
 
 #==============================================================================
 class NoListeningError(SocketTransportError):
     pass
+
+#==============================================================================
+class RequestStatusError(NagiosPluginError):
+    pass
+
+#==============================================================================
+class RequestStatus(object):
+    """
+    A class for handling status replies from provisioning daemon.
+    """
+
+    #--------------------------------------------------------------------------
+    def __init__(self, job_id = None, state = None,
+            error_code = None, message = None):
+        """
+        Constructor.
+
+        @param job_id: the job ID of this reply
+        @type job_id: int
+        @param state: the reply state (see VCB)
+        @type state: int
+        @param error_code: the VDC error code
+        @type error_code: int
+        @param message: the textual reply message
+        @type message: str
+
+        @return: None
+
+        """
+
+        self._job_id = job_id
+
+        self._state = state
+
+        self._error_code = error_code
+
+        self._message = message
+
+    #------------------------------------------------------------
+    @property
+    def job_id(self):
+        """The job ID of this reply."""
+        return self._job_id
+
+    #------------------------------------------------------------
+    @property
+    def state(self):
+        """The reply state (see VCB)."""
+        return self._state
+
+    #------------------------------------------------------------
+    @property
+    def error_code(self):
+        """The VDC error code (old unused trash from somewhere)."""
+        return self._error_code
+
+    #------------------------------------------------------------
+    @property
+    def message(self):
+        """The textual reply message."""
+        return self._message
+
+    #--------------------------------------------------------------------------
+    def __str__(self):
+        """
+        Typecasting function for translating object structure into a string.
+
+        @return: string as used as a reply from the provisioning daemon
+        @rtype:  str
+        """
+
+        jid = self.job_id
+        if jid is None:
+            jid = '0'
+
+        st = self.state
+        if st is None:
+            st = 0
+
+        ec = self.error_code
+        if ec is None:
+            ec = 0
+
+        msg = self.message
+        if msg is None:
+            msg = '<No message>'
+
+        s = "%s,%d,%d,%s" % (jid, st, ec, msg)
+        return s
+
+    #--------------------------------------------------------------------------
+    def as_dict(self):
+        """
+        Typecasting into a dictionary.
+
+        @return: structure as dict
+        @rtype:  dict
+
+        """
+
+        res = {
+            '__class_name__': self.__class__.__name__,
+            'error_code': self.error_code,
+            'job_id': self.job_id,
+            'message': self.message,
+            'state': self.state,
+        }
+
+        return res
 
 #==============================================================================
 class CheckPpdInstancePlugin(ExtNagiosPlugin):
@@ -366,6 +483,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         result = ''
         do_parse = False
         result_rcvd = False
+        rstatus = None
 
         try:
             result = self.send(xml)
@@ -374,10 +492,26 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             result_rcvd = True
         except NoListeningError, e:
             result = "Error: " + str(e).strip()
+            state = nagios.state.critical
         except SocketTransportError, e:
             result = "Error: " + str(e).strip()
+            state = nagios.state.critical
 
-        log.info("Got result: %r.", result)
+        if self.verbose > 1:
+            log.debug("Got result: %r.", result)
+
+        if do_parse:
+            try:
+                rstatus = self.parse_result(result)
+                if rstatus.state != STATUS['succeeded']:
+                    state = self.max_state(state, nagios.state.critical)
+                result = rstatus.message
+                result_rcvd = True
+            except RequestStatusError, e:
+                result = "Could not understand message: %s" % (result)
+                state = self.max_state(state, nagios.state.critical)
+
+        out = result
 
         self.exit(state, out)
 
@@ -510,6 +644,38 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         return result_line
 
+    #--------------------------------------------------------------------------
+    def parse_result(self, message):
+        """
+        Parses the given string to get an instance of a RequestStatus object.
+
+        @raise RequestStatusError: if not successful.
+
+        @param message: the message to parse into a RequestStatus object.
+        @type message: str
+
+
+        """
+
+        if message is None:
+            raise RequestStatusError("Cannot parse a None object.")
+
+        message = str(message).strip()
+
+        match = re_parse_result.search(message)
+        if not match:
+            msg = (("Parsing error. Message %r doesn't match " +
+                    "a status reply message.") % (message))
+            raise RequestStatusError(msg)
+
+        request_status = RequestStatus(
+            job_id = str(match.group(1)).strip(),
+            state = int(match.group(2)),
+            error_code = int(match.group(3)),
+            message = match.group(4),
+        )
+
+        return request_status
 
 #==============================================================================
 
