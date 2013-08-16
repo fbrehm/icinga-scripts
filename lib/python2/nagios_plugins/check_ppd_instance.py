@@ -53,6 +53,7 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_PPD_PORT = 8073
 DEFAULT_JOB_ID = 1
 DEFAULT_POLLING_INTERVAL = 0.05
+DEFAULT_POLLING_INTERVAL = 0.5
 DEFAULT_BUFFER_SIZE = 8192
 
 XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -85,6 +86,10 @@ re_parse_result = re.compile(r'^([^,]+),(\d+),(\d+),(.*)$')
 
 #==============================================================================
 class SocketTransportError(NagiosPluginError):
+    pass
+
+#==============================================================================
+class SocketConnectTimeoutError(SocketTransportError):
     pass
 
 #==============================================================================
@@ -568,22 +573,53 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             msg = "Sending message to %r, port %d with a timeout of %d seconds."
             log.debug(msg, self.host_address, self.ppd_port, self.timeout)
 
+        def connect_alarm_caller(signum, sigframe):
+            '''
+            This nested function will be called in event of a timeout
+
+            @param signum:   the signal number (POSIX) which happend
+            @type signum:    int
+            @param sigframe: the frame of the signal
+            @type sigframe:  object
+            '''
+
+            raise SocketConnectTimeoutError("Timeout connecting to %r port %d." % (
+                self.host_address, self.ppd_port))
+
         s = None
         sa = None
         for res in socket.getaddrinfo(self.host_address, self.ppd_port,
                 socket.AF_UNSPEC, socket.SOCK_STREAM):
+
+            if self.verbose > 3:
+                log.debug("Socket address info: %r", res)
             af, socktype, proto, canonname, sa = res
+
+            # Get the socket:
             try:
+                signal.signal(signal.SIGALRM, connect_alarm_caller)
+                signal.alarm(self.timeout)
                 s = socket.socket(af, socktype, proto)
             except socket.error, msg:
                 s = None
                 continue
+            finally:
+                signal.alarm(0)
+
+            if self.verbose > 3:
+                log.debug("Got a socket: %r.", s)
+
+            # Connect to the socket
             try:
+                signal.signal(signal.SIGALRM, connect_alarm_caller)
+                signal.alarm(self.timeout)
                 s.connect(sa)
             except socket.error, msg:
                 s.close()
                 s = None
                 continue
+            finally:
+                signal.alarm(0)
             break
 
         if s is None:
@@ -613,6 +649,8 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
                 cur_time = time.time()
                 secs = cur_time - begin
+                if self.verbose > 2:
+                    log.debug("Current seconds: %0.2f", secs)
 
                 if secs > self.timeout:
                     break_on_timeout = True
