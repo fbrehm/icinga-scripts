@@ -283,6 +283,16 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                         "(Default: %(default)d)."),
         )
 
+        self.add_arg(
+            '-b', '--buffer',
+            metavar = 'SIZE',
+            dest = 'buffer_size',
+            type = int,
+            default = DEFAULT_BUFFER_SIZE,
+            help = ("The size of the buffer for the socket operation in " +
+                    "bytes (Default: %(default)d)."),
+        )
+
     #--------------------------------------------------------------------------
     def parse_args(self, args = None):
         """
@@ -298,11 +308,13 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         self._host_address = self.argparser.args.host_address
         if self.argparser.args.ppd_port:
-            self._ppd_port = self.argparser.args.ppd_port
+            self.ppd_port = self.argparser.args.ppd_port
         if self.argparser.args.min_version:
             self._min_version = self.argparser.args.min_version
         if self.argparser.args.job_id:
-            self._job_id = self.argparser.args.job_id
+            self.job_id = self.argparser.args.job_id
+        if self.argparser.args.buffer_size is not None:
+            self.buffer_size = self.argparser.args.buffer_size
 
     #--------------------------------------------------------------------------
     def __call__(self):
