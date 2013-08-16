@@ -496,6 +496,11 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         except SocketTransportError, e:
             result = "Error: " + str(e).strip()
             state = nagios.state.critical
+        except Exception, e:
+            result = "Error %s on checking PPD on %r port %d: %s" % (
+                    e.__class__.__name__, self.host_address,
+                    self.ppd_port, e)
+            state = nagios.state.critical
 
         if self.verbose > 1:
             log.debug("Got result: %r.", result)
