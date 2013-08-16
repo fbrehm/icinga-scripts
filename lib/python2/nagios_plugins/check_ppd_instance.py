@@ -12,7 +12,11 @@ import os
 import sys
 import re
 import logging
+import socket
 import textwrap
+import time
+import select
+import signal
 
 from numbers import Number
 
@@ -48,6 +52,8 @@ log = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 30
 DEFAULT_PPD_PORT = 8073
 DEFAULT_JOB_ID = 1
+DEFAULT_POLLING_INTERVAL = 0.05
+DEFAULT_BUFFER_SIZE = 8192
 
 XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <pjd>
@@ -119,6 +125,12 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         @type: int
         """
 
+        self._polling_interval = DEFAULT_POLLING_INTERVAL
+
+        self._buffer_size = DEFAULT_BUFFER_SIZE
+
+        self._should_shutdown = False
+
         self._add_args()
 
     #------------------------------------------------------------
@@ -133,6 +145,16 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         """The TCP port of PPD on the host to check."""
         return self._ppd_port
 
+    @ppd_port.setter
+    def ppd_port(self, value):
+        v = abs(int(value))
+        if v == 0:
+            raise ValueError("The port must not be zero.")
+        if v >= 2 ** 16:
+            raise ValueError("The port must not greater than %d." % (
+                    (2 ** 16 - 1)))
+        self._ppd_port = v
+
     #------------------------------------------------------------
     @property
     def min_version(self):
@@ -145,6 +167,11 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         """The Job-Id to use in PJD to send to PPD."""
         return self._job_id
 
+    @job_id.setter
+    def job_id(self, value):
+        v = int(value)
+        self._job_id = abs(v)
+
     #------------------------------------------------------------
     @property
     def timeout(self):
@@ -152,6 +179,42 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         if not hasattr(self, 'argparser'):
             return DEFAULT_TIMEOUT
         return self.argparser.args.timeout
+
+    #------------------------------------------------------------
+    @property
+    def polling_interval(self):
+        """The polling interval on network socket."""
+        return self._polling_interval
+
+    @polling_interval.setter
+    def polling_interval(self, value):
+        v = float(value)
+        if v == 0:
+            raise ValueError("The polling interval must not be zero.")
+        self._polling_interval = abs(v)
+
+    #------------------------------------------------------------
+    @property
+    def buffer_size(self):
+        """The size of the buffer for the socket operation."""
+        return self._buffer_size
+
+    @buffer_size.setter
+    def buffer_size(self, value):
+        v = abs(int(value))
+        if v < 512:
+            raise ValueError("The buffer size must be greater than 512 bytes.")
+        self._buffer_size = v
+
+    #------------------------------------------------------------
+    @property
+    def should_shutdown(self):
+        """Should the current process shutdown by a signal from outside."""
+        return self._should_shutdown
+
+    @should_shutdown.setter
+    def should_shutdown(self, value):
+        self._should_shutdown = bool(value)
 
     #--------------------------------------------------------------------------
     def as_dict(self):
@@ -170,6 +233,9 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         d['min_version'] = self.min_version
         d['job_id'] = self.job_id
         d['timeout'] = self.timeout
+        d['polling_interval'] = self.polling_interval
+        d['should_shutdown'] = self.should_shutdown
+        d['buffer_size'] = self.buffer_size
 
         return d
 
@@ -277,7 +343,86 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             msg = "Sending message to %r, port %d with a timeout of %d seconds."
             log.debug(msg, self.host_address, self.ppd_port, self.timeout)
 
+        s = None
+        sa = None
+        for res in socket.getaddrinfo(self.host_address, self.ppd_port,
+                socket.AF_UNSPEC, socket.SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            try:
+                s = socket.socket(af, socktype, proto)
+            except socket.error, msg:
+                s = None
+                continue
+            try:
+                s.connect(sa)
+            except socket.error, msg:
+                s.close()
+                s = None
+                continue
+            break
 
+        if s is None:
+            msg = "PPD seems not to listen on %r, port %d." % (
+                    self.host_address, self.ppd_port)
+            raise NoListeningError(msg)
+
+        if my_verbose > 3:
+            msg = ("Got a socket address of %s." % (str(sa)))
+            log.debug(msg)
+
+        # Fileno of client socket
+        s_fn = s.fileno()
+
+        # Sending the message
+        s.send(message)
+
+        # Wait for an answer
+        begin = time.time()
+        data = ''
+        break_on_timeout = False
+        result_line = ''
+        chunk = ''
+
+        try:
+            while not self.should_shutdown:
+
+                cur_time = time.time()
+                secs = cur_time - begin
+
+                if secs > self.timeout:
+                    break_on_timeout = True
+                    break
+
+                rlist, wlist, elist = select.select(
+                        [s_fn], [], [], polling_interval)
+
+                if s_fn in rlist:
+                    data = s.recv(buffer_size)
+                    if data == '':
+                        if my_verbose > 3:
+                            log.debug("Socket closed from remote.")
+                        if chunk != '':
+                            break
+                    result_line += data
+                    chunk += data
+                else:
+                    if chunk != '':
+                        chunk = ''
+
+        except select.error, e:
+            if e[0] == 4:
+                pass
+            else:
+                log.error("Error in select(): "  + str(e))
+
+        s.close()
+
+        if break_on_timeout:
+            secs = time.time() - begin
+            msg = 'Timeout after %0.2f seconds.' % (secs)
+            raise SocketTransportError(msg)
+
+        return result_line
 
 
 #==============================================================================
