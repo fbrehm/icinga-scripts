@@ -62,6 +62,16 @@ XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </pjd>
 """
 
+SIGNAL_NAMES = {
+    signal.SIGHUP: 'HUP',
+    signal.SIGINT: 'INT',
+    signal.SIGABRT: 'ABRT',
+    signal.SIGTERM: 'TERM',
+    signal.SIGKILL: 'KILL',
+    signal.SIGUSR1: 'USR1',
+    signal.SIGUSR2: 'USR2',
+}
+
 #==============================================================================
 class SocketTransportError(NagiosPluginError):
     '''
@@ -131,6 +141,8 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         self._should_shutdown = False
 
+        self._cancel_signal = None
+
         self._add_args()
 
     #------------------------------------------------------------
@@ -160,6 +172,12 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
     def min_version(self):
         """The minimum version number of the running PPD."""
         return self._min_version
+
+    #------------------------------------------------------------
+    @property
+    def cancel_signal(self):
+        """Which signal got the process to cancel it."""
+        return self._cancel_signal
 
     #------------------------------------------------------------
     @property
@@ -236,6 +254,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         d['polling_interval'] = self.polling_interval
         d['should_shutdown'] = self.should_shutdown
         d['buffer_size'] = self.buffer_size
+        d['cancel_signal'] = self.cancel_signal
 
         return d
 
@@ -333,6 +352,33 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             log.debug("Current object:\n%s", pp(self.as_dict()))
 
         self.exit(state, out)
+
+    #--------------------------------------------------------------------------
+    def exit_signal_handler(self, signum, frame):
+        """
+        Handler as a callback function for getting a signal from somewhere.
+
+        @param signum: the gotten signal number
+        @type signum: int
+        @param frame: the current stack frame
+        @type frame: None or a frame object
+
+        """
+
+        signame = "%d"  % (signum)
+        if signum in SIGNAL_NAMES:
+            signame = SIGNAL_NAMES[signum]
+
+        log.debug("Got a signal %r.", signame)
+
+        if (signum == signal.SIGUSR1) or (signum == signal.SIGUSR2):
+            log.debug("Nothing to do on signal USR1 or USR2.")
+            return
+
+        log.info("Canceled.")
+        self._cancel_signal = signame
+
+        self.should_shutdown = True
 
     #--------------------------------------------------------------------------
     def send(self, message):
