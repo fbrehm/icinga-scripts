@@ -84,6 +84,9 @@ STATUS = {
 
 re_parse_result = re.compile(r'^([^,]+),(\d+),(\d+),(.*)$')
 
+# PPD Version [0.9.48], Operation type [storage]
+re_version = re.compile(r'version\s+\[([^\]]+)\]', re.IGNORECASE)
+
 #==============================================================================
 class SocketTransportError(NagiosPluginError):
     pass
@@ -489,6 +492,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         do_parse = False
         result_rcvd = False
         rstatus = None
+        got_version = None
 
         try:
             result = self.send(xml)
@@ -521,9 +525,37 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                 result = "Could not understand message: %s" % (result)
                 state = self.max_state(state, nagios.state.critical)
 
+        if result_rcvd:
+            got_version = self.parse_for_version(result)
+            log.debug("Got a version of: %r", got_version)
+            if got_version is None:
+                state = self.max_state(state, nagios.state.warning)
+                result += ' - no version found.'
+            elif self.min_version is not None:
+                parsed_version_expected = parse_version(self.min_version)
+                if self.verbose > 1:
+                    log.debug("Expecting parsed version %r.", parsed_version_expected)
+                parsed_version_got = parse_version(got_version)
+                if self.verbose > 1:
+                    log.debug("Got parsed version %r.", parsed_version_got)
+                if parsed_version_got < parsed_version_expected:
+                    state = self.max_state(state, nagios.state.warning)
+                    result += ' - version is less than %r.' % (self.min_version)
+
         out = result
 
         self.exit(state, out)
+
+    #--------------------------------------------------------------------------
+    def parse_for_version(self, msg):
+        """
+        Parses in the given message for a version string.
+        """
+
+        match = re_version.search(msg)
+        if not match:
+            return None
+        return match.group(1)
 
     #--------------------------------------------------------------------------
     def exit_signal_handler(self, signum, frame):
