@@ -41,12 +41,20 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 log = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 DEFAULT_PPD_PORT = 8073
+DEFAULT_JOB_ID = 1
+
+XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<pjd>
+    <job-id>%d</job-id>
+    <command>info</command>
+</pjd>
+"""
 
 #==============================================================================
 class CheckPpdInstancePlugin(ExtNagiosPlugin):
@@ -62,7 +70,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         """
 
         usage = """\
-                %(prog)s [optional options] -H <server_address> [-P <PPD port>]
+                %(prog)s [options] -H <server_address> [-P <PPD port>]
                 """
         usage = textwrap.dedent(usage).strip()
         usage += '\n       %(prog)s --usage'
@@ -94,6 +102,12 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         @type: str or None
         """
 
+        self._job_id = DEFAULT_JOB_ID
+        """
+        @ivar: the Job-Id to use in PJD to send to PPD
+        @type: int
+        """
+
         self._add_args()
 
     #------------------------------------------------------------
@@ -114,6 +128,12 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         """The minimum version number of the running PPD."""
         return self._min_version
 
+    #------------------------------------------------------------
+    @property
+    def job_id(self):
+        """The Job-Id to use in PJD to send to PPD."""
+        return self._job_id
+
     #--------------------------------------------------------------------------
     def as_dict(self):
         """
@@ -129,6 +149,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         d['host_address'] = self.host_address
         d['ppd_port'] = self.ppd_port
         d['min_version'] = self.min_version
+        d['job_id'] = self.job_id
 
         return d
 
@@ -166,6 +187,16 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                         "a warning is generated."),
         )
 
+        self.add_arg(
+                '-J', '--job-id',
+                metavar = 'ID',
+                dest = 'job_id',
+                type = int,
+                default = DEFAULT_JOB_ID,
+                help = ("The Job-Id to use in PJD to send to PPD " +
+                        "(Default: %(default)d)."),
+        )
+
     #--------------------------------------------------------------------------
     def parse_args(self, args = None):
         """
@@ -184,6 +215,8 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             self._ppd_port = self.argparser.args.ppd_port
         if self.argparser.args.min_version:
             self._min_version = self.argparser.args.min_version
+        if self.argparser.args.job_id:
+            self._job_id = self.argparser.args.job_id
 
     #--------------------------------------------------------------------------
     def __call__(self):
