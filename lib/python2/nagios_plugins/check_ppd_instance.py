@@ -351,6 +351,34 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         if self.verbose > 2:
             log.debug("Current object:\n%s", pp(self.as_dict()))
 
+
+        signal.signal(signal.SIGHUP, self.exit_signal_handler)
+        signal.signal(signal.SIGINT, self.exit_signal_handler)
+        signal.signal(signal.SIGABRT, self.exit_signal_handler)
+        signal.signal(signal.SIGTERM, self.exit_signal_handler)
+        signal.signal(signal.SIGUSR1, self.exit_signal_handler)
+        signal.signal(signal.SIGUSR2, self.exit_signal_handler)
+
+        xml = XML_TEMPLATE % (self.job_id)
+        if self.verbose > 3:
+            log.debug("XML to send:\n%s", xml)
+
+        result = ''
+        do_parse = False
+        result_rcvd = False
+
+        try:
+            result = self.send(xml)
+            result = result.strip()
+            do_parse = True
+            result_rcvd = True
+        except NoListeningError, e:
+            result = "Error: " + str(e).strip()
+        except SocketTransportError, e:
+            result = "Error: " + str(e).strip()
+
+        log.info("Got result: %r.", result)
+
         self.exit(state, out)
 
     #--------------------------------------------------------------------------
@@ -424,7 +452,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                     self.host_address, self.ppd_port)
             raise NoListeningError(msg)
 
-        if my_verbose > 3:
+        if self.verbose > 3:
             msg = ("Got a socket address of %s." % (str(sa)))
             log.debug(msg)
 
@@ -452,12 +480,12 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                     break
 
                 rlist, wlist, elist = select.select(
-                        [s_fn], [], [], polling_interval)
+                        [s_fn], [], [], self.polling_interval)
 
                 if s_fn in rlist:
-                    data = s.recv(buffer_size)
+                    data = s.recv(self.buffer_size)
                     if data == '':
-                        if my_verbose > 3:
+                        if self.verbose > 3:
                             log.debug("Socket closed from remote.")
                         if chunk != '':
                             break
