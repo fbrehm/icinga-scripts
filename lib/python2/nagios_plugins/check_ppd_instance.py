@@ -41,7 +41,7 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 log = logging.getLogger(__name__)
 
@@ -145,6 +145,14 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         """The Job-Id to use in PJD to send to PPD."""
         return self._job_id
 
+    #------------------------------------------------------------
+    @property
+    def timeout(self):
+        """Seconds before plugin times out."""
+        if not hasattr(self, 'argparser'):
+            return DEFAULT_TIMEOUT
+        return self.argparser.args.timeout
+
     #--------------------------------------------------------------------------
     def as_dict(self):
         """
@@ -161,6 +169,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         d['ppd_port'] = self.ppd_port
         d['min_version'] = self.min_version
         d['job_id'] = self.job_id
+        d['timeout'] = self.timeout
 
         return d
 
@@ -246,6 +255,30 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             log.debug("Current object:\n%s", pp(self.as_dict()))
 
         self.exit(state, out)
+
+    #--------------------------------------------------------------------------
+    def send(self, message):
+        """
+        Sends the message over network socket to the recipient.
+        It waits for all replies and gives them back all.
+
+        @raise NoListeningError: if PPD isn't listening on the given port
+        @raise SocketTransportError: on some communication errors or timeouts
+
+        @param message: the message to send over the network
+        @type message: str
+
+        @return: response from server, or None
+        @rtype: str
+
+        """
+
+        if self.verbose > 2:
+            msg = "Sending message to %r, port %d with a timeout of %d seconds."
+            log.debug(msg, self.host_address, self.ppd_port, self.timeout)
+
+
+
 
 #==============================================================================
 
