@@ -1,0 +1,55 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+"""
+@author: Frank Brehm
+@contact: frank.brehm@profitbricks.com
+@copyright: © 2010 - 2013 by Frank Brehm, Berlin
+@summary: Nagios plugin ≡ check script to check the state
+          of physical drives on a LSI MegaRaid adapter.
+"""
+
+# Standard modules
+import os
+import sys
+
+# Third party modules
+
+# Mangeling import path
+py_major = str(sys.version_info[0])
+py_minor = str(sys.version_info[1])
+
+libdir = os.path.abspath(os.path.join(os.path.dirname(
+        sys.argv[0]), '..', 'lib'))
+pylibdir = os.path.join(libdir, ('python' + py_major + '.' + py_minor))
+#sys.stderr.write("Searching for python lib dir %r ...\n" % (pylibdir))
+
+if not os.path.exists(pylibdir):
+    msg = "Directory %r doesn't exists." % (pylibdir)
+    sys.stderr.write("Import error.\n")
+    print msg
+    sys.exit(3)
+
+if __name__ == "__main__":
+    sys.path.insert(0, pylibdir)
+
+del py_major
+del py_minor
+del libdir
+del pylibdir
+
+# Own modules
+
+try:
+    import nagios_plugins
+    from nagios_plugins.check_megaraid_pd import CheckMegaRaidPdPlugin
+except ImportError, e:
+    sys.stderr.write("Import error.\n")
+    print str(e)
+    sys.exit(3)
+
+plugin = CheckMegaRaidPdPlugin()
+plugin()
+
+#==============================================================================
+
+# vim: fileencoding=utf-8 filetype=python ts=4 et
