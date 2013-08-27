@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 log = logging.getLogger(__name__)
 
@@ -186,8 +186,12 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         out = "State of physical drives of MegaRaid adapter %d seems to be okay." % (
                 self.adapter_nr)
 
+        # Enclosure Device ID: 0
+        re_enc = re.compile(r'^\s*Enclosure\s+Device\s+ID\s*:\s*(\d+)', re.IGNORECASE)
         # Slot Number: 23
-        re_slot = re.compile(r'^\s*Slot\s+Number\s*:\s*\d+', re.IGNORECASE)
+        re_slot = re.compile(r'^\s*Slot\s+Number\s*:\s*(\d+)', re.IGNORECASE)
+        # Device Id: 6
+        re_dev_id = re.compile(r'^\s*Device\s+Id\s*:\s*(\d+)', re.IGNORECASE)
 
         drives_total = 0
         args = ('-PdList',)
@@ -195,15 +199,47 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         if self.verbose > 3:
             log.debug("Output on StdOut:\n%s", stdoutdata)
 
+        cur_dev = None
+
         for line in stdoutdata.splitlines():
 
             line = line.strip()
+            m = re_enc.search(line)
+            if m:
+                if cur_dev:
+                    if ('enclosure' in cur_dev) and ('slot' in cur_dev):
+                        pd_id = '[%d:%d]' % (
+                                cur_dev['enclosure'], cur_dev['slot'])
+                        self.drive_list.append(pd_id)
+                        self.drive[pd_id] = cur_dev
 
-            if re_slot.search(line):
+                cur_dev = {}
                 drives_total += 1
+                cur_dev = {'enclosure': int(m.group(1))}
                 continue
 
+            m = re_slot.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['slot'] = int(m.group(1))
+                continue
+
+            m = re_dev_id.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['dev_id'] = int(m.group(1))
+                continue
+
+        if cur_dev:
+            if ('enclosure' in cur_dev) and ('slot' in cur_dev):
+                pd_id = '[%d:%d]' % (cur_dev['enclosure'], cur_dev['slot'])
+                self.drive_list.append(pd_id)
+                self.drive[pd_id] = cur_dev
+
         log.debug("Found %d drives.", drives_total)
+        if self.verbose > 2:
+            log.debug("Found Pds:\n%s", self.drive_list)
+            log.debug("Found Pd data:\n%s", self.drive)
 
         #state = self.threshold.get_status(found_hotspares)
         #out = "found %d hotspare(s)." % (found_hotspares)
