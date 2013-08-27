@@ -192,6 +192,19 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         re_slot = re.compile(r'^\s*Slot\s+Number\s*:\s*(\d+)', re.IGNORECASE)
         # Device Id: 6
         re_dev_id = re.compile(r'^\s*Device\s+Id\s*:\s*(\d+)', re.IGNORECASE)
+        # Media Error Count: 0
+        re_media_errors = re.compile(r'^\s*Media\s+Error\s+Count\s*:\s*(\d+)', re.IGNORECASE)
+        # Other Error Count: 0
+        re_other_errors = re.compile(r'^\s*Other\s+Error\s+Count\s*:\s*(\d+)', re.IGNORECASE)
+        # Predictive Failure Count: 0
+        re_pred_failures = re.compile(r'^\s*Predictive\s+Failure\s+Count\s*:\s*(\d+)', re.IGNORECASE)
+        # Firmware state: Online, Spun Up
+        re_fw_state = re.compile(r'^\s*Firmware\s+state\s*:\s*(\S+.*)', re.IGNORECASE)
+        # Foreign State: None
+        re_foreign_state = re.compile(r'^\s*Foreign\s+state\s*:\s*(\S+.*)', re.IGNORECASE)
+
+        re_good_fw_state = re.compile(r'^\s*(?:Online,\s+Spun\s+Up|Hotspare,\s+Spun\s+down|Hotspare,\s+Spun\s+Up)\s*$',
+                re.IGNORECASE)
 
         drives_total = 0
         args = ('-PdList',)
@@ -215,7 +228,14 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
 
                 cur_dev = {}
                 drives_total += 1
-                cur_dev = {'enclosure': int(m.group(1))}
+                cur_dev = {
+                        'enclosure': int(m.group(1)),
+                        'media_errors': 0,
+                        'other_errors': 0,
+                        'predictive_failures': 0,
+                        'fw_state': None,
+                        'foreign_state': None,
+                }
                 continue
 
             m = re_slot.search(line)
@@ -230,30 +250,115 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
                     cur_dev['dev_id'] = int(m.group(1))
                 continue
 
+            m = re_media_errors.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['media_errors'] = int(m.group(1))
+                continue
+
+            m = re_other_errors.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['other_errors'] = int(m.group(1))
+                continue
+
+            m = re_pred_failures.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['predictive_failures'] = int(m.group(1))
+                continue
+
+            m = re_fw_state.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['fw_state'] = m.group(1)
+                continue
+
+            m = re_foreign_state.search(line)
+            if m:
+                if cur_dev:
+                    cur_dev['foreign_state'] = m.group(1)
+                continue
+
         if cur_dev:
             if ('enclosure' in cur_dev) and ('slot' in cur_dev):
                 pd_id = '[%d:%d]' % (cur_dev['enclosure'], cur_dev['slot'])
                 self.drive_list.append(pd_id)
                 self.drive[pd_id] = cur_dev
 
+        media_errors = 0
+        other_errors = 0
+        predictive_failures = 0
+        fw_state_wrong = 0
+        foreign_state_wrong = 0
+        errors = []
+
+        for pd_id in self.drive_list:
+            cur_dev = self.drive[pd_id]
+            drive_ok = True
+            drv_desc = []
+
+            if cur_dev['media_errors']:
+                drive_ok = False
+                drv_desc.append("has %d media errors" % (cur_dev['media_errors']))
+                media_errors += 1
+            if cur_dev['other_errors']:
+                drive_ok = False
+                drv_desc.append("has %d other errors" % (cur_dev['other_errors']))
+                other_errors += 1
+            if cur_dev['predictive_failures']:
+                drive_ok = False
+                drv_desc.append("has %d predictive failures" % (cur_dev['predictive_failures']))
+                predictive_failures += 1
+            if not re_good_fw_state.search(cur_dev['fw_state']):
+                drive_ok = False
+                drv_desc.append("has wrong firmware state %r" % (cur_dev['fw_state']))
+                fw_state_wrong += 1
+            if cur_dev['foreign_state'].lower() != "none":
+                drive_ok = False
+                drv_desc.append("has wrong foreign state %r" % (cur_dev['foreign_state']))
+                foreign_state_wrong += 1
+            if not drive_ok:
+                state = max_state(state, nagios.state.critical)
+                dd = "drive %s has " + ' and '.join(drv_desc)
+                errors.append(dd)
+
         log.debug("Found %d drives.", drives_total)
         if self.verbose > 2:
             log.debug("Found Pds:\n%s", self.drive_list)
             log.debug("Found Pd data:\n%s", self.drive)
 
-        #state = self.threshold.get_status(found_hotspares)
-        #out = "found %d hotspare(s)." % (found_hotspares)
-
-        #self.add_perfdata(
-        #        label = 'hotspares',
-        #        value = found_hotspares,
-        #        uom = '',
-        #        threshold = self.threshold,
-        #)
+        if errors:
+            out = ', '.join(errors)
 
         self.add_perfdata(
                 label = 'drives_total',
                 value = drives_total,
+                uom = '',
+        )
+        self.add_perfdata(
+                label = 'media_errors',
+                value = media_errors,
+                uom = '',
+        )
+        self.add_perfdata(
+                label = 'other_errors',
+                value = other_errors,
+                uom = '',
+        )
+        self.add_perfdata(
+                label = 'predictive_failures',
+                value = predictive_failures,
+                uom = '',
+        )
+        self.add_perfdata(
+                label = 'wrong_fw_state',
+                value = fw_state_wrong,
+                uom = '',
+        )
+        self.add_perfdata(
+                label = 'wrong_foreign_state',
+                value = foreign_state_wrong,
                 uom = '',
         )
 
