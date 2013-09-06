@@ -14,8 +14,6 @@ import sys
 import re
 import logging
 import textwrap
-import subprocess
-import signal
 
 from numbers import Number
 
@@ -44,49 +42,13 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.3.1'
+__version__ = '0.4.0'
 
 log = logging.getLogger(__name__)
 
 re_exit_code = re.compile(r'^\s*Exit\s*Code\s*:\s+0x([0-9a-f]+)', re.IGNORECASE)
 re_no_adapter = re.compile(r'^\s*User\s+specified\s+controller\s+is\s+not\s+present',
         re.IGNORECASE)
-
-#==============================================================================
-class MegaCliExecTimeoutError(ExtNagiosPluginError, IOError):
-    """
-    Special error class indicating a timout error on
-    executing MegaCli.
-    """
-
-    #--------------------------------------------------------------------------
-    def __init__(self, timeout, cmdline):
-        """
-        Constructor.
-
-        @param timeout: the timout in seconds leading to the error
-        @type timeout: float
-        @param filename: the commandline leading to the error
-        @type filename: str
-
-        """
-
-        t_o = None
-        try:
-            t_o = float(timeout)
-        except ValueError:
-            pass
-        self.timeout = t_o
-
-        self.cmdline = cmdline
-
-    #--------------------------------------------------------------------------
-    def __str__(self):
-
-        msg = "Error executing: %s (timeout after %0.1f secs)" % (
-                self.cmdline, self.timeout)
-
-        return msg
 
 #==============================================================================
 class CheckMegaRaidPlugin(ExtNagiosPlugin):
@@ -368,55 +330,8 @@ class CheckMegaRaidPlugin(ExtNagiosPlugin):
             cmd_list.append('-NoLog')
 
         cmd_list = [str(element) for element in cmd_list]
-        cmd_str = self.megacli_cmd
-        for arg in cmd_list[1:]:
-            cmd_str += ' ' + ("%r" % (arg))
-        if self.verbose > 1:
-            log.debug("Executing: %s", cmd_str)
 
-        stdoutdata = ''
-        stderrdata = ''
-        ret = None
-        timeout = abs(int(self.timeout))
-
-        def exec_alarm_caller(signum, sigframe):
-            '''
-            This nested function will be called in event of a timeout
-
-            @param signum:   the signal number (POSIX) which happend
-            @type signum:    int
-            @param sigframe: the frame of the signal
-            @type sigframe:  object
-            '''
-
-            raise MegaCliExecTimeoutError(timeout, cmd_str)
-
-        signal.signal(signal.SIGALRM, exec_alarm_caller)
-        signal.alarm(timeout)
-
-        # And execute it ...
-        try:
-            cmd_obj = subprocess.Popen(
-                    cmd_list,
-                    close_fds = False,
-                    stderr = subprocess.PIPE,
-                    stdout = subprocess.PIPE,
-            )
-
-            (stdoutdata, stderrdata) = cmd_obj.communicate()
-            ret = cmd_obj.wait()
-
-        except MegaCliExecTimeoutError, e:
-            self.die(str(e))
-
-        finally:
-            signal.alarm(0)
-
-        if self.verbose > 1:
-            log.debug("Returncode: %s" % (ret))
-        if stderrdata:
-            msg = "Output on StdErr: %r." % (stderrdata.strip())
-            log.debug(msg)
+        (ret, stdoutdata, stderrdata) = self.exec_cmd(cmd_list)
 
         exit_code = ret
         no_adapter_found = False
