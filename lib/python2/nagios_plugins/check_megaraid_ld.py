@@ -134,6 +134,7 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
         blurb += "Checks the state of a Logical Drive of a LSI MegaRaid adapter."
 
         super(CheckMegaRaidLdPlugin, self).__init__(
+                shortname = 'MEGARAID_LD',
                 usage = usage, blurb = blurb,
                 version = __version__,
         )

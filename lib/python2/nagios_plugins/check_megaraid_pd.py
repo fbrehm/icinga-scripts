@@ -73,6 +73,7 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         blurb += "Checks the number of the state of physical drives on a LSI MegaRaid adapter."
 
         super(CheckMegaRaidPdPlugin, self).__init__(
+                shortname = 'MEGARAID_PD',
                 usage = usage, blurb = blurb,
                 version = __version__,
         )
@@ -102,38 +103,6 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         Adding all necessary arguments to the commandline argument parser.
         """
 
-        #help_c = """\
-        #        The number of hotspare drives, where it becomes critical,
-        #        if the number of existing hotspares is below (mandantory,
-        #        default: '%(default)s').
-        #        """
-        #help_c = textwrap.dedent(help_c).replace('\n', ' ').strip()
-        #self.add_arg(
-        #        '-c', '--critical',
-        #        metavar = 'DRIVES:',
-        #        dest = 'critical',
-        #        required = True,
-        #        type = NagiosRange,
-        #        default = self.critical_number,
-        #        help = help_c,
-        #)
-
-        #help_w = """\
-        #        The number of hotspare drives, where it becomes a warning,
-        #        if the number of existing hotspares is below (mandantory,
-        #        default: '%(default)s').
-        #        """
-        #help_w = textwrap.dedent(help_w).replace('\n', ' ').strip()
-        #self.add_arg(
-        #        '-w', '--warning',
-        #        metavar = 'DRIVES:',
-        #        dest = 'warning',
-        #        required = True,
-        #        type = NagiosRange,
-        #        default = self.warning_number,
-        #        help = help_w,
-        #)
-
         super(CheckMegaRaidPdPlugin, self)._add_args()
 
     #--------------------------------------------------------------------------
@@ -150,31 +119,6 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         """
 
         super(CheckMegaRaidPdPlugin, self).parse_args(args)
-
-        #crit = self.argparser.args.critical
-        #if not crit.end is None:
-        #    msg = ("The critical hot spare number must be given with an " +
-        #            "ending colon, e.g. '1:' (given %s).") % (crit)
-        #    self.die(msg)
-        #self._critical_number = crit
-
-        #warn = self.argparser.args.warning
-        #if not warn.end is None:
-        #    msg = ("The warning hot spare number must be given with an " +
-        #            "ending colon, e.g. '2:' (given %s).") % (warn)
-        #    self.die(msg)
-        #self._warning_number = warn
-
-        #if crit.start > warn.start:
-        #    msg = ("The warning number must be greater than or equal to " +
-        #            "the critical number (given warning: '%s', critical " +
-        #            "'%s').") % (warn, crit)
-        #    self.die(msg)
-
-        #self.set_thresholds(
-        #        warning = warn,
-        #        critical = crit,
-        #)
 
     #--------------------------------------------------------------------------
     def call(self):

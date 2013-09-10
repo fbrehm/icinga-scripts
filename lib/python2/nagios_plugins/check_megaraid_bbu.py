@@ -112,6 +112,7 @@ class CheckMegaRaidBBUPlugin(CheckMegaRaidPlugin):
         blurb += "Checks the state of the BBU of a LSI MegaRaid adapter."
 
         super(CheckMegaRaidBBUPlugin, self).__init__(
+                shortname = 'MEGARAID_BBU',
                 usage = usage, blurb = blurb,
                 version = __version__,
         )

@@ -73,6 +73,7 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
         blurb += "Checks the number of hotspare drives on a LSI MegaRaid adapter."
 
         super(CheckMegaRaidHotsparePlugin, self).__init__(
+                shortname = 'MEGARAID_HOTSPARE',
                 usage = usage, blurb = blurb,
                 version = __version__,
         )
