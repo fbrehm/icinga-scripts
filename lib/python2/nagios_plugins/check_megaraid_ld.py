@@ -326,8 +326,11 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
         elif ld_state.lower() != 'optimal':
             state = nagios.state.critical
 
+        consistency_out = ''
         if consist_percent is not None:
             state = max_state(state, nagios.state.warning)
+            consistency_out = ", consistency check completed: %d%%, taken %d min." % (
+                    consist_percent, consist_min)
 
         cached_out = ', cached: No'
         if ld_cached:
@@ -351,9 +354,9 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
             else:
                 size_out = ', %s' % (str(size_val))
 
-        out = "State of LD %d of MegaRaid adapter %d (RAID-%d, %d drives%s%s): %s." % (
+        out = "State of LD %d of MegaRaid adapter %d (RAID-%d, %d drives%s%s%s): %s." % (
                 self.ld_number, self.adapter_nr, raid_level, pd_count,
-                size_out, cached_out, ld_state)
+                size_out, cached_out, consistency_out, ld_state)
 
         self.exit(state, out)
 
