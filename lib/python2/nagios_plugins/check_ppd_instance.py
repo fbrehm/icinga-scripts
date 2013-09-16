@@ -232,6 +232,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         blurb += "Checks the state of the given Infiniband HCA port."
 
         super(CheckPpdInstancePlugin, self).__init__(
+                shortname = 'PPD_INSTANCE',
                 usage = usage, blurb = blurb,
                 version = __version__, timeout = DEFAULT_TIMEOUT,
         )

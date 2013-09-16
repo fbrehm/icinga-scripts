@@ -91,6 +91,7 @@ class CheckIbStatusPlugin(ExtNagiosPlugin):
         blurb += "Checks the state of the given Infiniband HCA port."
 
         super(CheckIbStatusPlugin, self).__init__(
+                shortname = 'IB_PORT',
                 usage = usage, blurb = blurb,
                 version = __version__, timeout = DEFAULT_TIMEOUT,
         )
