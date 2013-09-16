@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 log = logging.getLogger(__name__)
 
@@ -151,6 +151,13 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
         @type: bool
         """
 
+        self._warn_on_consistency_check = False
+        """
+        @ivar: Emit a warning, if there is currently a consitency check
+               on this logical drive
+        @type: bool
+        """
+
         self._add_args()
 
     #------------------------------------------------------------
@@ -164,6 +171,15 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
     def cached(self):
         """Checking, whether the LD is cached by CacheCade."""
         return self._cached
+
+    #------------------------------------------------------------
+    @property
+    def warn_on_consistency_check(self):
+        """
+        Emit a warning, if there is currently a consitency check
+        on this logical drive.
+        """
+        return self._warn_on_consistency_check
 
     #--------------------------------------------------------------------------
     def as_dict(self):
@@ -179,6 +195,7 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
 
         d['ld_number'] = self.ld_number
         d['cached'] = self.cached
+        d['warn_on_consistency_check'] = self.warn_on_consistency_check
 
         return d
 
@@ -204,6 +221,14 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
                 help = "Checking, whether the LD is cached by CacheCade.",
         )
 
+        self.add_arg(
+                '-W', '--warn_on_consistency_check',
+                action = 'store_true',
+                dest = 'wocc',
+                help = ('Emit a warning, if there is currently a consitency ' +
+                        'check on this logical drive.'),
+        )
+
         super(CheckMegaRaidLdPlugin, self)._add_args()
 
     #--------------------------------------------------------------------------
@@ -224,6 +249,10 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
         self._ld_number = self.argparser.args.ld_nr
         if self.argparser.args.cached:
             self._cached = True
+
+        if self.argparser.args.wocc:
+            self._warn_on_consistency_check = True
+
 
     #--------------------------------------------------------------------------
     def call(self):
@@ -328,7 +357,8 @@ class CheckMegaRaidLdPlugin(CheckMegaRaidPlugin):
 
         consistency_out = ''
         if consist_percent is not None:
-            state = max_state(state, nagios.state.warning)
+            if self.warn_on_consistency_check:
+                state = max_state(state, nagios.state.warning)
             consistency_out = ", consistency check completed: %d%%, taken %d min." % (
                     consist_percent, consist_min)
 
