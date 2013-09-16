@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 log = logging.getLogger(__name__)
 
@@ -264,7 +264,8 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
                 foreign_state_wrong += 1
             if not drive_ok:
                 state = max_state(state, nagios.state.critical)
-                dd = "drive %s has " + ' and '.join(drv_desc)
+                dd = "drive %s has " % (pd_id)
+                dd += ' and '.join(drv_desc)
                 errors.append(dd)
 
         log.debug("Found %d drives.", drives_total)
