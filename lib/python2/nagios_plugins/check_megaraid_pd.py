@@ -45,7 +45,7 @@ from nagios_plugins.check_megaraid import CheckMegaRaidPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 log = logging.getLogger(__name__)
 
@@ -147,8 +147,14 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         # Foreign State: None
         re_foreign_state = re.compile(r'^\s*Foreign\s+state\s*:\s*(\S+.*)', re.IGNORECASE)
 
-        re_good_fw_state = re.compile(r'^\s*(?:Online,\s+Spun\s+Up|Hotspare,\s+Spun\s+down|Hotspare,\s+Spun\s+Up)\s*$',
-                re.IGNORECASE)
+        good_fw_states = (
+            r'Online,\s+Spun\s+Up',
+            r'Hotspare,\s+Spun\s+down',
+            r'Hotspare,\s+Spun\s+Up',
+            r'Unconfigured\(good\),\s+Spun\s+Up',
+        )
+        good_fw_pattern = r'^\s*(?:' + r'|'.join(good_fw_states) + r')\s*$'
+        re_good_fw_state = re.compile(good_fw_pattern, re.IGNORECASE)
 
         drives_total = 0
         args = ('-PdList',)
