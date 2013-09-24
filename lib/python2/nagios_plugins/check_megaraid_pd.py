@@ -149,9 +149,10 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
 
         good_fw_states = (
             r'Online,\s+Spun\s+Up',
-            r'Hotspare,\s+Spun\s+down',
             r'Hotspare,\s+Spun\s+Up',
+            r'Hotspare,\s+Spun\s+Down',
             r'Unconfigured\(good\),\s+Spun\s+Up',
+            r'Unconfigured\(good\),\s+Spun\s+Down',
         )
         good_fw_pattern = r'^\s*(?:' + r'|'.join(good_fw_states) + r')\s*$'
         re_good_fw_state = re.compile(good_fw_pattern, re.IGNORECASE)
