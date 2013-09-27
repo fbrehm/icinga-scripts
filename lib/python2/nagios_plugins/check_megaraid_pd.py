@@ -247,30 +247,36 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
         for pd_id in self.drive_list:
             cur_dev = self.drive[pd_id]
             drive_ok = True
+            found_rrors = False
             drv_desc = []
 
             if cur_dev['media_errors']:
                 drive_ok = False
-                drv_desc.append("has %d media errors" % (cur_dev['media_errors']))
+                found_rrors = True
+                drv_desc.append("%d media errors" % (cur_dev['media_errors']))
                 media_errors += 1
             if cur_dev['other_errors']:
-                drive_ok = False
-                drv_desc.append("has %d other errors" % (cur_dev['other_errors']))
+                found_rrors = True
+                drv_desc.append("%d other errors" % (cur_dev['other_errors']))
                 other_errors += 1
             if cur_dev['predictive_failures']:
                 drive_ok = False
-                drv_desc.append("has %d predictive failures" % (cur_dev['predictive_failures']))
+                found_rrors = True
+                drv_desc.append("%d predictive failures" % (cur_dev['predictive_failures']))
                 predictive_failures += 1
             if not re_good_fw_state.search(cur_dev['fw_state']):
                 drive_ok = False
-                drv_desc.append("has wrong firmware state %r" % (cur_dev['fw_state']))
+                found_rrors = True
+                drv_desc.append("wrong firmware state %r" % (cur_dev['fw_state']))
                 fw_state_wrong += 1
             if cur_dev['foreign_state'].lower() != "none":
                 drive_ok = False
-                drv_desc.append("has wrong foreign state %r" % (cur_dev['foreign_state']))
+                found_rrors = True
+                drv_desc.append("wrong foreign state %r" % (cur_dev['foreign_state']))
                 foreign_state_wrong += 1
-            if not drive_ok:
-                state = max_state(state, nagios.state.critical)
+            if found_rrors:
+                if not drive_ok:
+                    state = max_state(state, nagios.state.critical)
                 dd = "drive %s has " % (pd_id)
                 dd += ' and '.join(drv_desc)
                 errors.append(dd)
