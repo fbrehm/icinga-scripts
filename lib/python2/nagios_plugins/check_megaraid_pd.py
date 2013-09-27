@@ -26,8 +26,10 @@ from nagios import BaseNagiosError
 
 from nagios.common import pp, caller_search_path
 
+import nagios.plugin
 from nagios.plugin import NagiosPluginError
 
+import nagios.plugin.functions
 from nagios.plugin.functions import max_state
 
 from nagios.plugin.range import NagiosRange
@@ -251,23 +253,22 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
 
         for pd_id in self.drive_list:
             cur_dev = self.drive[pd_id]
-            drive_ok = True
-            found_rrors = False
+            found_errors = False
             drv_desc = []
             disk_state = nagios.state.ok
 
             if cur_dev['media_errors']:
                 disk_state = max_state(disk_state, nagios.state.critical)
-                found_rrors = True
+                found_errors = True
                 drv_desc.append("%d media errors" % (cur_dev['media_errors']))
                 media_errors += 1
             if cur_dev['other_errors']:
-                found_rrors = True
+                found_errors = True
                 drv_desc.append("%d other errors" % (cur_dev['other_errors']))
                 other_errors += 1
             if cur_dev['predictive_failures']:
                 disk_state = max_state(disk_state, nagios.state.critical)
-                found_rrors = True
+                found_errors = True
                 drv_desc.append("%d predictive failures" % (cur_dev['predictive_failures']))
                 predictive_failures += 1
             if not re_good_fw_state.search(cur_dev['fw_state']):
@@ -275,19 +276,22 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
                     disk_state = max_state(disk_state, nagios.state.warning)
                 else:
                     disk_state = max_state(disk_state, nagios.state.critical)
-                found_rrors = True
+                found_errors = True
                 drv_desc.append("wrong firmware state %r" % (cur_dev['fw_state']))
                 fw_state_wrong += 1
             if cur_dev['foreign_state'].lower() != "none":
                 disk_state = max_state(disk_state, nagios.state.critical)
-                found_rrors = True
+                found_errors = True
                 drv_desc.append("wrong foreign state %r" % (cur_dev['foreign_state']))
                 foreign_state_wrong += 1
-            if found_rrors:
+            if found_errors:
                 state = max_state(state, disk_state)
                 dd = "drive %s has " % (pd_id)
                 dd += ' and '.join(drv_desc)
                 errors.append(dd)
+            if found_errors or self.verbose > 1:
+                log.debug("State of drive %s is %s.", pd_id,
+                         nagios.plugin.functions.STATUS_TEXT[disk_state])
 
         log.debug("Found %d drives.", drives_total)
         if self.verbose > 2:
