@@ -154,8 +154,13 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
             r'Unconfigured\(good\),\s+Spun\s+Up',
             r'Unconfigured\(good\),\s+Spun\s+Down',
         )
+        warn_fw_states = (
+            r'Rebuild',
+        )
         good_fw_pattern = r'^\s*(?:' + r'|'.join(good_fw_states) + r')\s*$'
+        warn_fw_pattern = r'^\s*(?:' + r'|'.join(warn_fw_states) + r')\s*$'
         re_good_fw_state = re.compile(good_fw_pattern, re.IGNORECASE)
+        re_warn_fw_state = re.compile(warn_fw_pattern, re.IGNORECASE)
 
         drives_total = 0
         args = ('-PdList',)
@@ -249,9 +254,10 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
             drive_ok = True
             found_rrors = False
             drv_desc = []
+            disk_state = nagios.state.ok
 
             if cur_dev['media_errors']:
-                drive_ok = False
+                disk_state = max_state(disk_state, nagios.state.critical)
                 found_rrors = True
                 drv_desc.append("%d media errors" % (cur_dev['media_errors']))
                 media_errors += 1
@@ -260,23 +266,25 @@ class CheckMegaRaidPdPlugin(CheckMegaRaidPlugin):
                 drv_desc.append("%d other errors" % (cur_dev['other_errors']))
                 other_errors += 1
             if cur_dev['predictive_failures']:
-                drive_ok = False
+                disk_state = max_state(disk_state, nagios.state.critical)
                 found_rrors = True
                 drv_desc.append("%d predictive failures" % (cur_dev['predictive_failures']))
                 predictive_failures += 1
             if not re_good_fw_state.search(cur_dev['fw_state']):
-                drive_ok = False
+                if re_warn_fw_state.search(cur_dev['fw_state']):
+                    disk_state = max_state(disk_state, nagios.state.warning)
+                else:
+                    disk_state = max_state(disk_state, nagios.state.critical)
                 found_rrors = True
                 drv_desc.append("wrong firmware state %r" % (cur_dev['fw_state']))
                 fw_state_wrong += 1
             if cur_dev['foreign_state'].lower() != "none":
-                drive_ok = False
+                disk_state = max_state(disk_state, nagios.state.critical)
                 found_rrors = True
                 drv_desc.append("wrong foreign state %r" % (cur_dev['foreign_state']))
                 foreign_state_wrong += 1
             if found_rrors:
-                if not drive_ok:
-                    state = max_state(state, nagios.state.critical)
+                state = max_state(state, disk_state)
                 dd = "drive %s has " % (pd_id)
                 dd += ' and '.join(drv_desc)
                 errors.append(dd)
