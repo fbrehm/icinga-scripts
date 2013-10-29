@@ -233,7 +233,9 @@ class CheckMegaRaidHotsparePlugin(CheckMegaRaidPlugin):
         log.debug("Found %d drives, %d hotspares.", drives_total, found_hotspares)
 
         state = self.threshold.get_status(found_hotspares)
-        out = "found %d hotspare(s)." % (found_hotspares)
+        out = "found %d hotspare(s) " % (found_hotspares)
+        out += "(warning: <%d, critical: <%d)." %  (self.threshold.warning.start,
+                self.threshold.critical.start)
 
         self.add_perfdata(
                 label = 'hotspares',
