@@ -4,7 +4,7 @@
 @author: Frank Brehm
 @contact: frank.brehm@profitbricks.com
 @copyright: © 2010 - 2013 by Frank Brehm, Berlin
-@summary: Module for CheckPpdInstancePlugin class
+@summary: Module for CheckVcbInstancePlugin class
 """
 
 # Standard modules
@@ -45,21 +45,21 @@ from nagios.plugins import ExtNagiosPlugin
 #---------------------------------------------
 # Some module variables
 
-__version__ = '0.2.2'
+__version__ = '0.1.0'
 
 log = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
-DEFAULT_PPD_PORT = 8073
-DEFAULT_JOB_ID = 1
+DEFAULT_VCB_PORT = 8072
+DEFAULT_JOB_ID = 2
 DEFAULT_POLLING_INTERVAL = 0.05
-DEFAULT_POLLING_INTERVAL = 0.5
 DEFAULT_BUFFER_SIZE = 8192
 
 XML_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <pjd>
     <job-id>%d</job-id>
-    <command>info</command>
+    <answer-to-socket>yes</answer-to-socket>
+    <command>vcb-info</command>
 </pjd>
 """
 
@@ -82,10 +82,16 @@ STATUS = {
     'continuing':       10,
 }
 
-re_parse_result = re.compile(r'^([^,]+),(\d+),(\d+),(.*)$')
+re_parse_result = re.compile(r'^([^,]+),(\d+),(\d+),(.*)$', re.DOTALL)
 
-# PPD Version [0.9.48], Operation type [storage]
-re_version = re.compile(r'version\s+\[([^\]]+)\]', re.IGNORECASE)
+# VCB_VERSION=8.6.29
+re_version = re.compile(r'^\s*VCB_VERSION\s*=\s*(\S+)',
+        re.IGNORECASE | re.MULTILINE)
+
+#END_OF_DATA=TRUE
+re_end_of_data = re.compile(r'^\s*end_of_data\s*=\s*(\S+)',
+        re.IGNORECASE | re.MULTILINE)
+re_true = re.compile(r'^(?:true|yes|[1-9])', re.IGNORECASE)
 
 #==============================================================================
 class SocketTransportError(NagiosPluginError):
@@ -199,7 +205,7 @@ class RequestStatus(object):
         """
 
         res = {
-            '__class_name__': self.__class__.__name__,
+           '__class_name__': self.__class__.__name__,
             'error_code': self.error_code,
             'job_id': self.job_id,
             'message': self.message,
@@ -209,55 +215,55 @@ class RequestStatus(object):
         return res
 
 #==============================================================================
-class CheckPpdInstancePlugin(ExtNagiosPlugin):
+class CheckVcbInstancePlugin(ExtNagiosPlugin):
     """
-    A special NagiosPlugin class for checking a running instance of a PPD
-    (python provisioning daemon) on a ProfitBricks storage server.
+    A special NagiosPlugin class for checking a running instance of VCB
+    on a ProfitBricks physical server (pserver).
     """
 
     #--------------------------------------------------------------------------
     def __init__(self):
         """
-        Constructor of the CheckPpdInstancePlugin class.
+        Constructor of the CheckVcbInstancePlugin class.
         """
 
         usage = """\
-                %(prog)s [options] -H <server_address> [-P <PPD port>]
+                %(prog)s [options] -H <server_address> [-P <VCB port>]
                 """
         usage = textwrap.dedent(usage).strip()
         usage += '\n       %(prog)s --usage'
         usage += '\n       %(prog)s --help'
 
         blurb = "Copyright (c) 2013 Frank Brehm, Berlin.\n\n"
-        blurb += "Checks the state and version of a running PPD instance."
+        blurb += "Checks the state and version of a running VCB instance."
 
-        super(CheckPpdInstancePlugin, self).__init__(
-                shortname = 'PPD_INSTANCE',
+        super(CheckVcbInstancePlugin, self).__init__(
+                shortname = 'VCB_INSTANCE',
                 usage = usage, blurb = blurb,
                 version = __version__, timeout = DEFAULT_TIMEOUT,
         )
 
         self._host_address = None
         """
-        @ivar: the DNS name or IP address of the host, running the PPD
+        @ivar: the DNS name or IP address of the host, running the VCB
         @type: str
         """
 
-        self._ppd_port = DEFAULT_PPD_PORT
+        self._vcb_port = DEFAULT_VCB_PORT
         """
-        @ivar: the TCP port of PPD on the host to check
+        @ivar: the TCP port of VCB on the host to check
         @type: int
         """
 
         self._min_version = None
         """
-        @ivar: the minimum version number of the running PPD
+        @ivar: the minimum version number of the running VCB
         @type: str or None
         """
 
         self._job_id = DEFAULT_JOB_ID
         """
-        @ivar: the Job-Id to use in PJD to send to PPD
+        @ivar: the Job-Id to use in PJD to send to VCB
         @type: int
         """
 
@@ -274,29 +280,29 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
     #------------------------------------------------------------
     @property
     def host_address(self):
-        """The DNS name or IP address of the host, running the PPD."""
+        """The DNS name or IP address of the host, running the VCB."""
         return self._host_address
 
     #------------------------------------------------------------
     @property
-    def ppd_port(self):
-        """The TCP port of PPD on the host to check."""
-        return self._ppd_port
+    def vcb_port(self):
+        """The TCP port of VCB on the host to check."""
+        return self._vcb_port
 
-    @ppd_port.setter
-    def ppd_port(self, value):
+    @vcb_port.setter
+    def vcb_port(self, value):
         v = abs(int(value))
         if v == 0:
             raise ValueError("The port must not be zero.")
         if v >= 2 ** 16:
             raise ValueError("The port must not greater than %d." % (
                     (2 ** 16 - 1)))
-        self._ppd_port = v
+        self._vcb_port = v
 
     #------------------------------------------------------------
     @property
     def min_version(self):
-        """The minimum version number of the running PPD."""
+        """The minimum version number of the running VCB."""
         return self._min_version
 
     #------------------------------------------------------------
@@ -308,7 +314,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
     #------------------------------------------------------------
     @property
     def job_id(self):
-        """The Job-Id to use in PJD to send to PPD."""
+        """The Job-Id to use in PJD to send to VCB."""
         return self._job_id
 
     @job_id.setter
@@ -370,10 +376,10 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         """
 
-        d = super(CheckPpdInstancePlugin, self).as_dict()
+        d = super(CheckVcbInstancePlugin, self).as_dict()
 
         d['host_address'] = self.host_address
-        d['ppd_port'] = self.ppd_port
+        d['vcb_port'] = self.vcb_port
         d['min_version'] = self.min_version
         d['job_id'] = self.job_id
         d['timeout'] = self.timeout
@@ -396,16 +402,16 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                 dest = 'host_address',
                 required = True,
                 help = ("The DNS name or IP address of the host, " +
-                        "running the PPD (mandantory)."),
+                        "running the VCB (mandantory)."),
         )
 
         self.add_arg(
                 '-P', '--port',
                 metavar = 'PORT',
-                dest = 'ppd_port',
+                dest = 'vcb_port',
                 type = int,
-                default = DEFAULT_PPD_PORT,
-                help = ("The TCP port of PPD on the host to check " +
+                default = DEFAULT_VCB_PORT,
+                help = ("The TCP port of VCB on the host to check " +
                         "(Default: %(default)d)."),
         )
 
@@ -413,8 +419,8 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                 '--min-version',
                 metavar = 'VERSION',
                 dest = 'min_version',
-                help = ("The minimum version number of the running PPD. " +
-                        "If given and the PPD version is less then this, " +
+                help = ("The minimum version number of the running VCB. " +
+                        "If given and the VCB version is less then this, " +
                         "a warning is generated."),
         )
 
@@ -424,7 +430,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                 dest = 'job_id',
                 type = int,
                 default = DEFAULT_JOB_ID,
-                help = ("The Job-Id to use in PJD to send to PPD " +
+                help = ("The Job-Id to use in PJD to send to VCB " +
                         "(Default: %(default)d)."),
         )
 
@@ -449,11 +455,11 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         """
 
-        super(CheckPpdInstancePlugin, self).parse_args(args)
+        super(CheckVcbInstancePlugin, self).parse_args(args)
 
         self._host_address = self.argparser.args.host_address
-        if self.argparser.args.ppd_port:
-            self.ppd_port = self.argparser.args.ppd_port
+        if self.argparser.args.vcb_port:
+            self.vcb_port = self.argparser.args.vcb_port
         if self.argparser.args.min_version:
             self._min_version = self.argparser.args.min_version
         if self.argparser.args.job_id:
@@ -471,8 +477,8 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         self.init_root_logger()
 
         state = nagios.state.ok
-        out = "PPD on %r port %d seems to be okay." % (
-                self.host_address, self.ppd_port)
+        out = "VCB on %r port %d seems to be okay." % (
+                self.host_address, self.vcb_port)
 
         if self.verbose > 2:
             log.debug("Current object:\n%s", pp(self.as_dict()))
@@ -507,17 +513,24 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             result = "Error: " + str(e).strip()
             state = nagios.state.critical
         except Exception, e:
-            result = "Error %s on checking PPD on %r port %d: %s" % (
+            result = "Error %s on checking VCB on %r port %d: %s" % (
                     e.__class__.__name__, self.host_address,
-                    self.ppd_port, e)
+                    self.vcb_port, e)
             state = nagios.state.critical
 
         if self.verbose > 1:
-            log.debug("Got result: %r.", result)
+            log.debug("Got result:\n%s.", result)
 
         if do_parse:
             try:
                 rstatus = self.parse_result(result)
+                while rstatus.state == STATUS['progress']:
+                    lines = result.splitlines()
+                    line_removed = lines.pop(0)
+                    log.debug("Removed first line %r", line_removed)
+                    result = '\n'.join(lines)
+                    rstatus = self.parse_result(result)
+
                 if rstatus.state != STATUS['succeeded']:
                     state = self.max_state(state, nagios.state.critical)
                 result = rstatus.message
@@ -528,6 +541,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         if result_rcvd:
             got_version = self.parse_for_version(result)
+            result = ' '.join(result.splitlines())
             log.debug("Got a version of: %r", got_version)
             if got_version is None:
                 state = self.max_state(state, nagios.state.warning)
@@ -591,7 +605,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
         Sends the message over network socket to the recipient.
         It waits for all replies and gives them back all.
 
-        @raise NoListeningError: if PPD isn't listening on the given port
+        @raise NoListeningError: if VCB isn't listening on the given port
         @raise SocketTransportError: on some communication errors or timeouts
 
         @param message: the message to send over the network
@@ -604,7 +618,7 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
 
         if self.verbose > 2:
             msg = "Sending message to %r, port %d with a timeout of %d seconds."
-            log.debug(msg, self.host_address, self.ppd_port, self.timeout)
+            log.debug(msg, self.host_address, self.vcb_port, self.timeout)
 
         def connect_alarm_caller(signum, sigframe):
             '''
@@ -617,11 +631,11 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             '''
 
             raise SocketConnectTimeoutError("Timeout connecting to %r port %d." % (
-                self.host_address, self.ppd_port))
+                self.host_address, self.vcb_port))
 
         s = None
         sa = None
-        for res in socket.getaddrinfo(self.host_address, self.ppd_port,
+        for res in socket.getaddrinfo(self.host_address, self.vcb_port,
                 socket.AF_UNSPEC, socket.SOCK_STREAM):
 
             if self.verbose > 3:
@@ -656,8 +670,8 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
             break
 
         if s is None:
-            msg = "PPD seems not to listen on %r, port %d." % (
-                    self.host_address, self.ppd_port)
+            msg = "VCB seems not to listen on %r, port %d." % (
+                    self.host_address, self.vcb_port)
             raise NoListeningError(msg)
 
         if self.verbose > 3:
@@ -701,6 +715,14 @@ class CheckPpdInstancePlugin(ExtNagiosPlugin):
                             break
                     result_line += data
                     chunk += data
+                    match = re_end_of_data.search(result_line)
+                    if match:
+                        eod = match.group(1)
+                        if re_true.search(eod):
+                            log.debug("End of data reached.")
+                            result_line = re_end_of_data.sub('', result_line)
+                            break
+
                 else:
                     if chunk != '':
                         chunk = ''
