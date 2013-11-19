@@ -31,9 +31,13 @@ ENDE
 )
 
 if [ -n "${ICINGA_NOTIFICATIONAUTHOR}" ] ; then
+    LABL="Author"
+    if [ "${ICINGA_NOTIFICATIONTYPE}" = "ACKNOWLEDGEMENT" ] ; then
+        LABL="Ack by"
+    fi
     BODY="${BODY}"$(cat <<ENDE
 
-Author:    ${ICINGA_NOTIFICATIONAUTHOR}
+${LABL}:   ${ICINGA_NOTIFICATIONAUTHOR}
 ENDE
 )
 fi
@@ -44,15 +48,6 @@ BODY="${BODY}"$(cat <<ENDE
 Notification-Number: ${ICINGA_SERVICENOTIFICATIONNUMBER}
 ENDE
 )
-
-#if [ "${ICINGA_NOTIFICATIONTYPE}" = "ACKNOWLEDGEMENT" ] ; then
-#    BODY="${BODY}"$(cat <<ENDE
-#
-#Ack by:  ${ICINGA_NOTIFICATIONAUTHOR}
-#ENDE
-#)
-#
-#fi
 
 if [ -n "${ICINGA_NOTIFICATIONCOMMENT}" ] ; then
     BODY="${BODY}"$(cat <<ENDE
@@ -76,7 +71,7 @@ fi
 BODY="${BODY}"$(cat <<ENDE
 
 
-Date/Time:   ${ICINGA_LONGDATETIME}
+Date/Time: ${ICINGA_LONGDATETIME}
 
 Additional Info: ${ICINGA_SERVICEOUTPUT}
 ENDE
