@@ -31,13 +31,13 @@ ENDE
 )
 
 if [ -n "${ICINGA_NOTIFICATIONAUTHOR}" ] ; then
-    LABL="Author"
+    LBL="Author"
     if [ "${ICINGA_NOTIFICATIONTYPE}" = "ACKNOWLEDGEMENT" ] ; then
-        LABL="Ack by"
+        LBL="Ack by"
     fi
     BODY="${BODY}"$(cat <<ENDE
 
-${LABL}:   ${ICINGA_NOTIFICATIONAUTHOR}
+${LBL}:    ${ICINGA_NOTIFICATIONAUTHOR}
 ENDE
 )
 fi
