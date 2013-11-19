@@ -30,6 +30,7 @@ ENDE
 if [ -n "${ICINGA_NOTIFICATIONCOMMENT}" ] ; then
     BODY="${BODY}"$(cat <<ENDE
 
+
 Comment:   ${ICINGA_NOTIFICATIONCOMMENT}
 ENDE
 )
@@ -37,6 +38,7 @@ ENDE
 fi
 
 BODY="${BODY}"$(cat <<ENDE
+
 
 Date/Time: ${ICINGA_LONGDATETIME}
 

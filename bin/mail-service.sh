@@ -45,6 +45,7 @@ ENDE
 if [ -n "${ICINGA_NOTIFICATIONCOMMENT}" ] ; then
     BODY="${BODY}"$(cat <<ENDE
 
+
 Comment: ${ICINGA_NOTIFICATIONCOMMENT}
 ENDE
 )
