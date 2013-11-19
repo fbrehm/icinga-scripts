@@ -20,7 +20,19 @@ Notification Type: ${ICINGA_NOTIFICATIONTYPE}
 Host:      ${ICINGA_HOSTALIAS}
 Address:   ${ICINGA_HOSTADDRESS}
 State:     ${ICINGA_HOSTSTATE}
+ENDE
+)
+
+if [ -n "${ICINGA_NOTIFICATIONAUTHOR}" ] ; then
+    BODY="${BODY}"$(cat <<ENDE
+
 Author:    ${ICINGA_NOTIFICATIONAUTHOR}
+ENDE
+)
+fi
+
+BODY="${BODY}"$(cat <<ENDE
+
 
 Notification-Number: ${ICINGA_HOSTNOTIFICATIONNUMBER}
 
